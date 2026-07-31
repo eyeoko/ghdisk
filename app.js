@@ -722,15 +722,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function uploadFileToGitHub(filename, base64Content) {
     const token = getActiveGitHubToken();
-    const repoUrl = siteConfig.repo_url || '';
-    if (!token || !repoUrl) return null;
+    const { owner, repo } = getRepoOwnerAndName();
+    if (!token || !owner || !repo) return null;
 
-    let match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-    if (!match) return null;
-    const owner = match[1];
-    const repo = match[2].replace(/\.git$/, '');
-
-    const path = `files/${filename}`;
+    const path = filename.startsWith('files/') ? filename : `files/${filename}`;
     const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
 
     try {
@@ -1382,10 +1377,10 @@ document.addEventListener('DOMContentLoaded', () => {
     mdViewSwitch.style.display = 'none';
     saveFileBtn.style.display = isAdminUnlocked ? 'inline-flex' : 'none';
 
-    // Retrieve latest saved content from IndexedDB (IndexedDB holds the user's latest saved edits)
+    // Retrieve from IndexedDB if available
     const idbData = await getFileFromIDB(fileNode.id);
     if (idbData) {
-      if (idbData.content !== undefined && idbData.content !== null) {
+      if (idbData.content !== undefined && (!tab.isDirty || tab.content === undefined)) {
         tab.content = idbData.content;
         fileNode.content = idbData.content;
       }
@@ -2089,11 +2084,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fileNode.content = newContent;
     activeTab.content = newContent;
     fileNode.updatedAt = new Date().toLocaleString();
-
-    // Update Markdown preview HTML immediately
-    if (markdownPreviewBox) {
-      markdownPreviewBox.innerHTML = renderSimpleMarkdown(newContent);
-    }
 
     // 1. Save to IndexedDB (Bypasses LocalStorage size quota limit)
     await saveFileToIDB(fileNode.id, {
