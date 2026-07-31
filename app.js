@@ -959,13 +959,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function handleGlobalRefresh() {
     globalRefreshBtn.querySelector('i').classList.add('fa-spin');
+    
+    // Clear stale cached local tree to force full fresh sync from GitHub Trees API
+    localStorage.removeItem('ys_tree_data');
+    
     const synced = await syncGitHubRepositoryTree();
     await loadData();
     renderTree();
     setTimeout(() => {
       globalRefreshBtn.querySelector('i').classList.remove('fa-spin');
       if (synced) {
-        showToast('目录已成功从 GitHub 仓库全量同步索引！');
+        showToast('目录已从 GitHub 仓库成功全量读取并重新索引！');
       } else {
         showToast('目录与网盘数据已成功刷新！');
       }
