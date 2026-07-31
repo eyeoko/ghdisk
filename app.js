@@ -1261,6 +1261,10 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (pendingAdminAction === 'saveFile') {
         pendingAdminAction = null;
         setTimeout(() => saveActiveFile(), 150);
+      } else if (pendingAdminAction === 'importConfig') {
+        pendingAdminAction = null;
+        const importFileInput = document.getElementById('import-config-file-input');
+        if (importFileInput) importFileInput.click();
       }
     } else {
       alert('密码错误，解锁失败！默认密码为 admin。');
@@ -2756,6 +2760,71 @@ document.addEventListener('DOMContentLoaded', () => {
     a.click();
 
     showToast('数据与设置已成功导出为 data.json！');
+  }
+
+  // Config Management Dropdown & Import Logic
+  const configDropdownBtn = document.getElementById('config-dropdown-btn');
+  const configDropdownMenu = document.getElementById('config-dropdown-menu');
+  const importConfigBtn = document.getElementById('import-config-btn');
+  const importConfigFileInput = document.getElementById('import-config-file-input');
+
+  if (configDropdownBtn && configDropdownMenu) {
+    configDropdownBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = configDropdownMenu.style.display === 'block';
+      configDropdownMenu.style.display = isVisible ? 'none' : 'block';
+    });
+
+    document.addEventListener('click', () => {
+      if (configDropdownMenu) configDropdownMenu.style.display = 'none';
+    });
+  }
+
+  if (importConfigBtn) {
+    importConfigBtn.addEventListener('click', () => {
+      if (!isAdminUnlocked) {
+        pendingAdminAction = 'importConfig';
+        adminPasswordInput.value = '';
+        passwordModal.style.display = 'flex';
+        setTimeout(() => adminPasswordInput.focus(), 100);
+        return;
+      }
+      if (importConfigFileInput) importConfigFileInput.click();
+    });
+  }
+
+  if (importConfigFileInput) {
+    importConfigFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const importedData = JSON.parse(evt.target.result);
+            if (importedData.site) {
+              siteConfig = { ...siteConfig, ...importedData.site };
+              localStorage.setItem('ys_site_config', JSON.stringify(siteConfig));
+              applySiteConfig();
+            }
+            if (importedData.tree && Array.isArray(importedData.tree)) {
+              treeData = importedData.tree;
+              ensureNodeMetadata(treeData);
+              saveTreeToLocal();
+              renderTree();
+            }
+            if (importedData.recycleBin && Array.isArray(importedData.recycleBin)) {
+              recycleBin = importedData.recycleBin;
+              localStorage.setItem('ys_recycle_bin', JSON.stringify(recycleBin));
+              updateRecycleCountBadge();
+            }
+            showToast(`网盘配置与目录树已成功从文件「${file.name}」全量导入生效！`);
+          } catch (err) {
+            alert('导入失败: 无法解析 JSON 数据格式！请确认选择的是正确的 data.json 配置文件。');
+          }
+        };
+        reader.readAsText(file);
+      }
+    });
   }
 
   function handleSearch(e) {

@@ -69,7 +69,22 @@
           <i class="fa-solid fa-file-import obsidian-yellow"></i> 永硕迁移
         </button>
 
-        <button id="export-config-btn" class="btn btn-sm btn-outline" title="导出配置文件"><i class="fa-solid fa-file-export"></i> 导出配置</button>
+        <!-- Config Management Dropdown (Export & Import Sub-menu) -->
+        <div class="custom-dropdown" id="config-dropdown">
+          <button id="config-dropdown-btn" class="btn btn-sm btn-outline" title="网盘配置与数据迁移菜单">
+            <i class="fa-solid fa-sliders obsidian-purple"></i> 数据迁移/配置 ▾
+          </button>
+          <div class="custom-dropdown-menu" id="config-dropdown-menu" style="display: none;">
+            <button id="export-config-btn" class="dropdown-item" title="导出当前网盘配置与目录树到文件">
+              <i class="fa-solid fa-file-export obsidian-green"></i> 导出配置 (data.json)
+            </button>
+            <button id="import-config-btn" class="dropdown-item" title="从外部 data.json 导入网盘配置与目录树">
+              <i class="fa-solid fa-file-import obsidian-yellow"></i> 导入配置 (data.json)
+            </button>
+          </div>
+        </div>
+        <input type="file" id="import-config-file-input" accept=".json" style="display: none;">
+
         <button id="theme-toggle-btn" class="btn btn-sm btn-outline" title="切换主题"><i class="fa-solid fa-sun"></i></button>
       </div>
     </div>
