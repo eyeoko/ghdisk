@@ -1382,10 +1382,10 @@ document.addEventListener('DOMContentLoaded', () => {
     mdViewSwitch.style.display = 'none';
     saveFileBtn.style.display = isAdminUnlocked ? 'inline-flex' : 'none';
 
-    // Retrieve from IndexedDB if available
+    // Retrieve latest saved content from IndexedDB (IndexedDB holds the user's latest saved edits)
     const idbData = await getFileFromIDB(fileNode.id);
     if (idbData) {
-      if (idbData.content && !tab.content) {
+      if (idbData.content !== undefined && idbData.content !== null) {
         tab.content = idbData.content;
         fileNode.content = idbData.content;
       }
@@ -2089,6 +2089,11 @@ document.addEventListener('DOMContentLoaded', () => {
     fileNode.content = newContent;
     activeTab.content = newContent;
     fileNode.updatedAt = new Date().toLocaleString();
+
+    // Update Markdown preview HTML immediately
+    if (markdownPreviewBox) {
+      markdownPreviewBox.innerHTML = renderSimpleMarkdown(newContent);
+    }
 
     // 1. Save to IndexedDB (Bypasses LocalStorage size quota limit)
     await saveFileToIDB(fileNode.id, {
