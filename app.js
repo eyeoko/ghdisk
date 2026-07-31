@@ -209,6 +209,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function encryptSecret(str, key) {
+    if (!str || !key) return '';
+    let res = '';
+    for (let i = 0; i < str.length; i++) {
+      res += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return btoa(unescape(encodeURIComponent(res)));
+  }
+
+  function decryptSecret(encStr, key) {
+    if (!encStr || !key) return '';
+    try {
+      let decoded = decodeURIComponent(escape(atob(encStr)));
+      let res = '';
+      for (let i = 0; i < decoded.length; i++) {
+        res += String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+      }
+      return res;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function getActiveGitHubToken() {
+    if (siteConfig && siteConfig.github_token) return siteConfig.github_token;
+    if (siteConfig && siteConfig.encrypted_token) {
+      const pass = siteConfig.admin_password || 'admin';
+      const dec = decryptSecret(siteConfig.encrypted_token, pass);
+      if (dec && dec.startsWith('ghp_')) return dec;
+    }
+    return '';
+  }
+
   // Init
   initTheme();
   initIndexedDB();
@@ -364,7 +397,9 @@ document.addEventListener('DOMContentLoaded', () => {
     settingCdnPrefix.value = siteConfig.cdn_prefix || '';
 
     settingStorageProvider.value = siteConfig.storage_provider || 'github';
-    if (settingGithubToken) settingGithubToken.value = siteConfig.github_token || '';
+    if (settingGithubToken) {
+      settingGithubToken.value = getActiveGitHubToken() || '';
+    }
     settingHfRepo.value = siteConfig.hf_repo || '';
     settingHfBranch.value = siteConfig.hf_branch || 'main';
     settingHfToken.value = siteConfig.hf_token || '';
@@ -394,7 +429,11 @@ document.addEventListener('DOMContentLoaded', () => {
     siteConfig.cdn_prefix = settingCdnPrefix.value.trim();
 
     siteConfig.storage_provider = settingStorageProvider.value;
-    if (settingGithubToken) siteConfig.github_token = settingGithubToken.value.trim();
+    if (settingGithubToken && settingGithubToken.value.trim()) {
+      const plainToken = settingGithubToken.value.trim();
+      siteConfig.github_token = plainToken;
+      siteConfig.encrypted_token = encryptSecret(plainToken, siteConfig.admin_password);
+    }
     siteConfig.hf_repo = settingHfRepo.value.trim();
     siteConfig.hf_branch = settingHfBranch.value.trim() || 'main';
     siteConfig.hf_token = settingHfToken.value.trim();
@@ -514,7 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function uploadFileToGitHub(filename, base64Content) {
-    const token = siteConfig.github_token || '';
+    const token = getActiveGitHubToken();
     const repoUrl = siteConfig.repo_url || '';
     if (!token || !repoUrl) return null;
 
@@ -606,7 +645,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // GitHub Direct API Push
       let githubUrl = null;
-      if (siteConfig.storage_provider === 'github' && siteConfig.github_token) {
+      const activeToken = getActiveGitHubToken();
+      if (siteConfig.storage_provider === 'github' && activeToken) {
         githubUrl = await uploadFileToGitHub(file.name, base64Only);
       }
 
@@ -871,9 +911,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (inputPass === targetPass) {
       isAdminUnlocked = true;
+
+      // Auto-decrypt token if encrypted_token exists
+      if (siteConfig.encrypted_token) {
+        const dec = decryptSecret(siteConfig.encrypted_token, inputPass);
+        if (dec && dec.startsWith('ghp_')) {
+          siteConfig.github_token = dec;
+        }
+      }
+
       closeAllModals();
       updatePermissionUI();
-      showToast('密码正确！管理员编辑与上传权限已解锁。');
+      showToast('密码正确！管理员编辑与 GitHub API 提交权限已同步解锁。');
 
       if (pendingAdminAction === 'openSettings') {
         pendingAdminAction = null;

@@ -9,6 +9,7 @@ window.YS_DATA = {
     "logo_icon": "fa-solid fa-gem",
     "admin_password": "admin",
     "storage_provider": "github",
+    "encrypted_token": "BgwdNggxDx4HHVBXOT4DGFA6XD9ZCB4dIScTWD8sEAAGEV8LIB0aFg==",
     "github_token": "",
     "hf_repo": "your-username/my-dataset",
     "hf_branch": "main",
