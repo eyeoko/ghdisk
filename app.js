@@ -1260,6 +1260,9 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (pendingAdminAction === 'openYsMigration') {
         pendingAdminAction = null;
         setTimeout(() => openYsMigrationModal(), 150);
+      } else if (pendingAdminAction === 'saveFile') {
+        pendingAdminAction = null;
+        setTimeout(() => saveActiveFile(), 150);
       }
     } else {
       alert('密码错误，解锁失败！默认密码为 admin。');
@@ -2068,16 +2071,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function saveActiveFile() {
-    if (!isAdminUnlocked) return alert('游客只读模式下无法保存修改，请先解锁！');
+  async function saveActiveFile() {
+    if (!isAdminUnlocked) {
+      pendingAdminAction = 'saveFile';
+      adminPasswordInput.value = '';
+      passwordModal.style.display = 'flex';
+      setTimeout(() => adminPasswordInput.focus(), 100);
+      return;
+    }
+
     const activeTab = getActiveTab();
     if (!activeTab || !activeTab.fileNode) return;
 
-    activeTab.fileNode.content = codeTextarea.value;
-    activeTab.fileNode.updatedAt = new Date().toLocaleString();
+    const fileNode = activeTab.fileNode;
+    const newContent = codeTextarea.value;
+
+    fileNode.content = newContent;
+    activeTab.content = newContent;
+    fileNode.updatedAt = new Date().toLocaleString();
+
+    // 1. Save to IndexedDB (Bypasses LocalStorage size quota limit)
+    await saveFileToIDB(fileNode.id, {
+      content: newContent,
+      dataUrl: fileNode.url
+    });
+
+    // 2. Save tree structure to LocalStorage
     saveTreeToLocal();
+
+    // 3. Commit & push directly to GitHub Repository if GitHub API token is active
+    let githubUploaded = false;
+    const activeToken = getActiveGitHubToken();
+
+    if (siteConfig.storage_provider === 'github' && activeToken) {
+      saveFileBtn.disabled = true;
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在提交至 GitHub...';
+
+      const base64Content = btoa(unescape(encodeURIComponent(newContent)));
+      let targetPath = fileNode.name;
+      if (fileNode.url && fileNode.url.startsWith('files/')) {
+        targetPath = fileNode.url.replace('files/', '');
+      }
+
+      const resUrl = await uploadFileToGitHub(targetPath, base64Content);
+      saveFileBtn.disabled = false;
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 保存文件';
+
+      if (resUrl) {
+        fileNode.url = resUrl;
+        githubUploaded = true;
+      }
+    }
+
     setDirtyState(false);
-    showToast('文件已保存！');
+
+    if (githubUploaded) {
+      showToast(`「${fileNode.name}」已保存并实时 Commit 提交至 GitHub 仓库！`);
+    } else {
+      showToast(`「${fileNode.name}」已成功保存！`);
+    }
   }
 
   function cleanTreeForLocalStorage(nodes) {
