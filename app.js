@@ -807,14 +807,122 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function handleGlobalRefresh() {
+  async function syncGitHubRepositoryTree() {
+    if (!siteConfig || siteConfig.storage_provider !== 'github' || !siteConfig.repo_url) return false;
+
+    let match = siteConfig.repo_url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (!match) return false;
+    const owner = match[1];
+    const repo = match[2].replace(/\.git$/, '');
+
+    const token = getActiveGitHubToken();
+    const headers = token ? { 'Authorization': `token ${token}` } : {};
+
+    try {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`, { headers });
+      if (!res.ok) return false;
+
+      const data = await res.json();
+      if (!data.tree || !Array.isArray(data.tree)) return false;
+
+      const ignoreRoot = ['index.html', 'style.css', 'app.js', 'data.json', 'data.js', 'README.md', 'LICENSE', '.gitignore', '.gitattributes'];
+
+      data.tree.forEach(item => {
+        if (ignoreRoot.includes(item.path)) return;
+
+        const pathParts = item.path.split('/');
+        if (item.type === 'tree') {
+          ensureFolderPathInTree(pathParts);
+        } else if (item.type === 'blob') {
+          insertRemoteFileNodeByPath(pathParts, item);
+        }
+      });
+
+      ensureNodeMetadata(treeData);
+      saveTreeToLocal();
+      return true;
+    } catch (err) {
+      console.warn('Sync GitHub tree failed:', err);
+      return false;
+    }
+  }
+
+  function ensureFolderPathInTree(pathParts) {
+    let currentChildren = treeData;
+    for (let i = 0; i < pathParts.length; i++) {
+      const folderName = pathParts[i];
+      let folderNode = currentChildren.find(c => c.type === 'folder' && c.name === folderName);
+      if (!folderNode) {
+        folderNode = {
+          id: 'folder_git_' + Math.random().toString(36).substring(2, 9),
+          type: 'folder',
+          name: folderName,
+          icon: 'fa-solid fa-folder',
+          expanded: true,
+          children: []
+        };
+        currentChildren.push(folderNode);
+      }
+      currentChildren = folderNode.children;
+    }
+  }
+
+  function insertRemoteFileNodeByPath(pathParts, item) {
+    let currentChildren = treeData;
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      const folderName = pathParts[i];
+      let folderNode = currentChildren.find(c => c.type === 'folder' && c.name === folderName);
+      if (!folderNode) {
+        folderNode = {
+          id: 'folder_git_' + Math.random().toString(36).substring(2, 9),
+          type: 'folder',
+          name: folderName,
+          icon: 'fa-solid fa-folder',
+          expanded: true,
+          children: []
+        };
+        currentChildren.push(folderNode);
+      }
+      currentChildren = folderNode.children;
+    }
+
+    const fileName = pathParts[pathParts.length - 1];
+    const ext = (fileName.split('.').pop() || '').toLowerCase();
+
+    let fileNode = currentChildren.find(c => c.type === 'file' && c.name === fileName);
+    const relUrl = item.path;
+
+    if (!fileNode) {
+      fileNode = {
+        id: 'file_git_' + (item.sha ? item.sha.substring(0, 10) : Math.random().toString(36).substring(2, 9)),
+        type: 'file',
+        name: fileName,
+        ext: ext,
+        desc: `从 GitHub 仓库动态同步`,
+        size: item.size ? (item.size > 1024 * 1024 ? (item.size / (1024 * 1024)).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB') : '已检索',
+        url: relUrl
+      };
+      currentChildren.push(fileNode);
+    } else {
+      fileNode.url = relUrl;
+      if (item.size) {
+        fileNode.size = item.size > 1024 * 1024 ? (item.size / (1024 * 1024)).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB';
+      }
+    }
+  }
+
+  async function handleGlobalRefresh() {
     globalRefreshBtn.querySelector('i').classList.add('fa-spin');
-    loadData().then(() => {
-      setTimeout(() => {
-        globalRefreshBtn.querySelector('i').classList.remove('fa-spin');
+    const synced = await syncGitHubRepositoryTree();
+    await loadData();
+    setTimeout(() => {
+      globalRefreshBtn.querySelector('i').classList.remove('fa-spin');
+      if (synced) {
+        showToast('目录已成功从 GitHub 仓库全量同步索引！');
+      } else {
         showToast('目录与网盘数据已成功刷新！');
-      }, 300);
-    });
+      }
+    }, 300);
   }
 
   function handleActiveFileRefresh() {
@@ -1130,6 +1238,10 @@ document.addEventListener('DOMContentLoaded', () => {
     applySiteConfig();
 
     treeData = savedLocalTree ? JSON.parse(savedLocalTree) : (defaultData ? defaultData.tree : []);
+    
+    // Auto-sync all files directly uploaded to GitHub via Git / Web / VSCode
+    await syncGitHubRepositoryTree();
+
     ensureNodeMetadata(treeData);
 
     recycleBin = savedRecycleBin ? JSON.parse(savedRecycleBin) : (defaultData ? defaultData.recycleBin || [] : []);
