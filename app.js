@@ -309,20 +309,15 @@ document.addEventListener('DOMContentLoaded', () => {
   copyCodeBtn.addEventListener('click', handleCopyCode);
   pasteCodeBtn.addEventListener('click', handlePasteCode);
 
-  document.querySelectorAll('.modal-close').forEach(btn => {
-    btn.addEventListener('click', closeAllModals);
+  // Global Modal Close Delegation (Handles any close button or backdrop click)
+  document.body.addEventListener('click', (e) => {
+    if (e.target.closest('.modal-close')) {
+      closeAllModals();
+    } else if (e.target.classList.contains('modal-overlay')) {
+      closeAllModals();
+    }
   });
 
-  // Close modals when clicking backdrop overlay
-  document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) {
-        closeAllModals();
-      }
-    });
-  });
-
-  // Close modals when pressing ESC key
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
       closeAllModals();
@@ -2322,17 +2317,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeAllModals() {
-    if (passwordModal) passwordModal.style.display = 'none';
-    if (uploadModal) uploadModal.style.display = 'none';
-    if (adminSettingsModal) adminSettingsModal.style.display = 'none';
-    if (recycleBinModal) recycleBinModal.style.display = 'none';
-    if (newFolderModal) newFolderModal.style.display = 'none';
-    if (newFileModal) newFileModal.style.display = 'none';
-    if (renameModal) renameModal.style.display = 'none';
-    if (moveModal) moveModal.style.display = 'none';
-    if (propertiesModal) propertiesModal.style.display = 'none';
-    const switcherModal = document.getElementById('storage-switcher-modal');
-    if (switcherModal) switcherModal.style.display = 'none';
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+      modal.style.display = 'none';
+    });
   }
 
   function exportConfig() {
