@@ -1219,21 +1219,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ext === 'pdf') {
       pdfPreviewContainer.style.display = 'flex';
       saveFileBtn.style.display = 'none';
-      pdfIframe.src = fileNode.url;
+      pdfIframe.src = encodeURI(fileNode.url);
       return;
     }
 
     if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) {
       imagePreviewContainer.style.display = 'flex';
       saveFileBtn.style.display = 'none';
-      imageElement.src = fileNode.url;
+      imageElement.src = encodeURI(fileNode.url);
       return;
     }
 
     let content = tab.content || fileNode.content;
     if (content === undefined && fileNode.url && !fileNode.url.startsWith('data:')) {
       try {
-        const res = await fetch(fileNode.url);
+        const res = await fetch(encodeURI(fileNode.url));
         if (res.ok) {
           content = await res.text();
           tab.content = content;
@@ -1947,11 +1947,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('prop-created').textContent = node.createdAt || '-';
     document.getElementById('prop-updated').textContent = node.updatedAt || '-';
 
-    const relPath = node.url || `files/${node.name}`;
+    const relPath = encodeURI(node.url || `files/${node.name}`);
     const pagesUrl = new URL(relPath, window.location.href).href;
-    const rawUrl = (siteConfig.raw_prefix || 'https://raw.githubusercontent.com/username/repo/main/') + relPath;
+    const rawUrl = (siteConfig.raw_prefix || 'https://raw.githubusercontent.com/eyeoko/ghdisk/main/') + relPath;
 
-    let customCdnPrefix = siteConfig.cdn_prefix || 'https://cdn.jsdelivr.net/gh/username/repo@main/';
+    let customCdnPrefix = siteConfig.cdn_prefix || 'https://cdn.jsdelivr.net/gh/eyeoko/ghdisk@main/';
     const cdnUrl = customCdnPrefix.endsWith('/') ? customCdnPrefix + relPath : `${customCdnPrefix}/${relPath}`;
 
     propPagesUrl.value = pagesUrl;
