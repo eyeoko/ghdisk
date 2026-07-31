@@ -2762,23 +2762,9 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('数据与设置已成功导出为 data.json！');
   }
 
-  // Config Management Dropdown & Import Logic
-  const configDropdownBtn = document.getElementById('config-dropdown-btn');
-  const configDropdownMenu = document.getElementById('config-dropdown-menu');
+  // Config Management & Import Logic
   const importConfigBtn = document.getElementById('import-config-btn');
   const importConfigFileInput = document.getElementById('import-config-file-input');
-
-  if (configDropdownBtn && configDropdownMenu) {
-    configDropdownBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isVisible = configDropdownMenu.style.display === 'block';
-      configDropdownMenu.style.display = isVisible ? 'none' : 'block';
-    });
-
-    document.addEventListener('click', () => {
-      if (configDropdownMenu) configDropdownMenu.style.display = 'none';
-    });
-  }
 
   if (importConfigBtn) {
     importConfigBtn.addEventListener('click', () => {

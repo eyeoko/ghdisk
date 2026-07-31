@@ -64,27 +64,6 @@
           <i class="fa-solid fa-trash-arrow-up"></i> 回收站 <span id="recycle-count-badge" class="badge-count">0</span>
         </button>
         
-        <!-- YS168 Migration Assistant Button -->
-        <button id="open-ys-migration-btn" class="btn btn-sm btn-outline admin-only" title="将永硕E盘(ys168)的内容一键全量迁移导入本网盘">
-          <i class="fa-solid fa-file-import obsidian-yellow"></i> 永硕迁移
-        </button>
-
-        <!-- Config Management Dropdown (Export & Import Sub-menu) -->
-        <div class="custom-dropdown" id="config-dropdown">
-          <button id="config-dropdown-btn" class="btn btn-sm btn-outline" title="网盘配置与数据迁移菜单">
-            <i class="fa-solid fa-sliders obsidian-purple"></i> 数据迁移/配置 ▾
-          </button>
-          <div class="custom-dropdown-menu" id="config-dropdown-menu" style="display: none;">
-            <button id="export-config-btn" class="dropdown-item" title="导出当前网盘配置与目录树到文件">
-              <i class="fa-solid fa-file-export obsidian-green"></i> 导出配置 (data.json)
-            </button>
-            <button id="import-config-btn" class="dropdown-item" title="从外部 data.json 导入网盘配置与目录树">
-              <i class="fa-solid fa-file-import obsidian-yellow"></i> 导入配置 (data.json)
-            </button>
-          </div>
-        </div>
-        <input type="file" id="import-config-file-input" accept=".json" style="display: none;">
-
         <button id="theme-toggle-btn" class="btn btn-sm btn-outline" title="切换主题"><i class="fa-solid fa-sun"></i></button>
       </div>
     </div>
@@ -493,6 +472,24 @@
           <label>⌛ 回收站自动保存时间：</label>
           <input type="number" id="setting-trash-retention" class="form-control" value="60" readonly>
           <small style="color:var(--text-muted);">自动保存 60 天（2个月），超期节点自动清理</small>
+        </div>
+
+        <!-- Data Migration & Config Backup Control Section -->
+        <div class="form-group" style="background-color:var(--bg-card); padding:0.85rem; border-radius:var(--radius-md); border:1px solid var(--primary-color); margin-top:1rem;">
+          <h4 style="font-size:0.85rem; color:var(--primary-color); margin-bottom:0.6rem;"><i class="fa-solid fa-arrows-split-up-and-left"></i> 数据迁移与整盘导入导出控制</h4>
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.4rem;">
+            <button id="open-ys-migration-btn" class="btn btn-sm btn-outline" type="button" title="打开永硕E盘(ys168)一键数据迁移助手">
+              <i class="fa-solid fa-file-import obsidian-yellow"></i> 永硕 E 盘 (YS168) 迁移助手
+            </button>
+            <button id="export-config-btn" class="btn btn-sm btn-outline" type="button" title="导出当前网盘配置与目录树到文件">
+              <i class="fa-solid fa-file-export obsidian-green"></i> 导出配置文件 (data.json)
+            </button>
+            <button id="import-config-btn" class="btn btn-sm btn-outline" type="button" title="从外部 data.json 导入网盘配置与目录树">
+              <i class="fa-solid fa-file-import obsidian-purple"></i> 导入配置文件 (data.json)
+            </button>
+          </div>
+          <input type="file" id="import-config-file-input" accept=".json" style="display: none;">
+          <small style="color:var(--text-muted); font-size:0.75rem;">可在此处对网盘数据进行全量导出备份、快捷恢复与外部网盘数据全量迁移。</small>
         </div>
       </div>
       <div class="modal-footer">
