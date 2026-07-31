@@ -313,6 +313,22 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', closeAllModals);
   });
 
+  // Close modals when clicking backdrop overlay
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        closeAllModals();
+      }
+    });
+  });
+
+  // Close modals when pressing ESC key
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      closeAllModals();
+    }
+  });
+
   document.querySelectorAll('.copy-link-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetId = btn.getAttribute('data-target');
@@ -2306,15 +2322,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function closeAllModals() {
-    passwordModal.style.display = 'none';
-    uploadModal.style.display = 'none';
-    adminSettingsModal.style.display = 'none';
-    recycleBinModal.style.display = 'none';
-    newFolderModal.style.display = 'none';
-    newFileModal.style.display = 'none';
-    renameModal.style.display = 'none';
-    moveModal.style.display = 'none';
-    propertiesModal.style.display = 'none';
+    if (passwordModal) passwordModal.style.display = 'none';
+    if (uploadModal) uploadModal.style.display = 'none';
+    if (adminSettingsModal) adminSettingsModal.style.display = 'none';
+    if (recycleBinModal) recycleBinModal.style.display = 'none';
+    if (newFolderModal) newFolderModal.style.display = 'none';
+    if (newFileModal) newFileModal.style.display = 'none';
+    if (renameModal) renameModal.style.display = 'none';
+    if (moveModal) moveModal.style.display = 'none';
+    if (propertiesModal) propertiesModal.style.display = 'none';
+    const switcherModal = document.getElementById('storage-switcher-modal');
+    if (switcherModal) switcherModal.style.display = 'none';
   }
 
   function exportConfig() {
