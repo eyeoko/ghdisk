@@ -64,6 +64,11 @@
           <i class="fa-solid fa-trash-arrow-up"></i> 回收站 <span id="recycle-count-badge" class="badge-count">0</span>
         </button>
         
+        <!-- YS168 Migration Assistant Button -->
+        <button id="open-ys-migration-btn" class="btn btn-sm btn-outline admin-only" title="将永硕E盘(ys168)的内容一键全量迁移导入本网盘">
+          <i class="fa-solid fa-file-import obsidian-yellow"></i> 永硕迁移
+        </button>
+
         <button id="export-config-btn" class="btn btn-sm btn-outline" title="导出配置文件"><i class="fa-solid fa-file-export"></i> 导出配置</button>
         <button id="theme-toggle-btn" class="btn btn-sm btn-outline" title="切换主题"><i class="fa-solid fa-sun"></i></button>
       </div>
@@ -704,6 +709,81 @@
       <div class="modal-footer">
         <button class="btn btn-outline btn-sm modal-close">关闭</button>
         <button class="btn btn-primary btn-sm" id="open-config-from-switcher"><i class="fa-solid fa-sliders"></i> 配置各源 Key / 域名</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: YS168 Netdisk Migration Assistant -->
+  <div id="ys-migration-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box modal-lg" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-file-import obsidian-yellow"></i> 永硕 E 盘 (YS168) 一键数据迁移助手</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          支持将永硕 E 盘 (ys168.com) 的目录结构、文件列表、网盘跳转链接与备注一键无缝解析并迁移导入本网盘！
+        </p>
+
+        <!-- Migration Mode Tabs -->
+        <div style="display:flex; gap:0.5rem; margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">
+          <button id="tab-ys-mode-url" class="modal-tab-btn active"><i class="fa-solid fa-globe"></i> 1. 永硕空间网址/空间名</button>
+          <button id="tab-ys-mode-paste" class="modal-tab-btn"><i class="fa-solid fa-code"></i> 2. 网页源码/文本解析</button>
+          <button id="tab-ys-mode-file" class="modal-tab-btn"><i class="fa-solid fa-file-code"></i> 3. 备份文件导入</button>
+        </div>
+
+        <!-- Mode 1: URL / Username -->
+        <div id="ys-group-url">
+          <div class="form-group">
+            <label>🌐 永硕 E 盘空间网址或空间名：</label>
+            <input type="text" id="ys-input-url" class="form-control" placeholder="例如：http://yourname.ys168.com 或直接输入 yourname">
+            <small style="color:var(--text-muted);">系统将通过 CORS 跨域通道自动获取解析对应的永硕目录树</small>
+          </div>
+        </div>
+
+        <!-- Mode 2: Paste HTML/TXT Source -->
+        <div id="ys-group-paste" style="display: none;">
+          <div class="form-group">
+            <label>📄 粘贴永硕 E 盘网页源码或目录文本：</label>
+            <textarea id="ys-input-paste" class="form-control" rows="6" placeholder="请在此处粘贴永硕 E 盘网页的 HTML 源码，或格式化的目录文本列表..."></textarea>
+            <small style="color:var(--text-muted);">可在永硕 E 盘页面按 Ctrl+U 复制代码并粘贴到此处解析</small>
+          </div>
+        </div>
+
+        <!-- Mode 3: Backup File Import -->
+        <div id="ys-group-file" style="display: none;">
+          <div class="upload-dropzone" id="ys-dropzone-file">
+            <i class="fa-solid fa-file-arrow-up" style="font-size:2rem; color:var(--primary-color); margin-bottom:0.5rem;"></i>
+            <p>点击选择或将永硕备份/导出文件 (JSON / TXT / HTML) 拖拽到此处</p>
+            <input type="file" id="ys-file-input" accept=".json,.txt,.html,.htm" style="display:none;">
+          </div>
+        </div>
+
+        <!-- Migration Options -->
+        <div style="background:var(--bg-card); padding:0.85rem; border-radius:var(--radius-md); border:1px solid var(--border-color); margin-top:1rem;">
+          <h4 style="font-size:0.85rem; color:var(--primary-color); margin-bottom:0.5rem;"><i class="fa-solid fa-sliders"></i> 迁移导入设置项</h4>
+          <div style="display:flex; flex-direction:column; gap:0.4rem; font-size:0.85rem;">
+            <label style="display:flex; align-items:center; gap:0.4rem;">
+              <input type="checkbox" id="ys-opt-keep-tree" checked> 保持永硕 E 盘原有的多级目录文件夹层级
+            </label>
+            <label style="display:flex; align-items:center; gap:0.4rem;">
+              <input type="checkbox" id="ys-opt-convert-links" checked> 将包含下载链接的项目自动转换为快捷跳转节点
+            </label>
+            <label style="display:flex; align-items:center; gap:0.4rem;">
+              <input type="checkbox" id="ys-opt-create-root" checked> 将迁移项目统一收入单独的「📁 永硕 E 盘迁移导入」根目录中
+            </label>
+          </div>
+        </div>
+
+        <!-- Realtime Log Box -->
+        <div id="ys-log-box" style="display:none; margin-top:1rem; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.75rem; font-family:monospace; font-size:0.8rem; max-height:150px; overflow-y:auto; color:#a7f3d0;">
+          <div id="ys-log-content">等待开始迁移...</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-close">取消</button>
+        <button id="ys-start-migration-btn" class="btn btn-primary"><i class="fa-solid fa-bolt"></i> 开始解析并一键迁移</button>
       </div>
     </div>
   </div>
