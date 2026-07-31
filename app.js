@@ -807,20 +807,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function syncGitHubRepositoryTree() {
-    if (!siteConfig || siteConfig.storage_provider !== 'github' || !siteConfig.repo_url) return false;
+  function getRepoOwnerAndName() {
+    let owner = 'eyeoko';
+    let repo = 'ghdisk';
 
-    let match = siteConfig.repo_url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-    if (!match) return false;
-    const owner = match[1];
-    const repo = match[2].replace(/\.git$/, '');
+    if (siteConfig && siteConfig.repo_url) {
+      let match = siteConfig.repo_url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+      if (match && match[1] && match[1] !== 'your-username' && match[1] !== 'username') {
+        owner = match[1];
+        repo = match[2].replace(/\.git$/, '');
+      }
+    }
+
+    if ((!owner || owner === 'your-username' || owner === 'username') && window.location.hostname.includes('.github.io')) {
+      owner = window.location.hostname.split('.')[0];
+      let pathSegs = window.location.pathname.split('/').filter(Boolean);
+      if (pathSegs.length > 0) {
+        repo = pathSegs[0];
+      }
+    }
+
+    return { owner, repo };
+  }
+
+  async function syncGitHubRepositoryTree() {
+    if (!siteConfig) siteConfig = {};
+    const { owner, repo } = getRepoOwnerAndName();
+    if (!owner || !repo) return false;
+
+    // Auto fix repo_url if it was stale
+    if (siteConfig.repo_url && (siteConfig.repo_url.includes('your-username') || siteConfig.repo_url.includes('username'))) {
+      siteConfig.repo_url = `https://github.com/${owner}/${repo}`;
+      siteConfig.cdn_prefix = `https://cdn.jsdelivr.net/gh/${owner}/${repo}@main/`;
+      siteConfig.raw_prefix = `https://raw.githubusercontent.com/${owner}/${repo}/main/`;
+      localStorage.setItem('ys_site_config', JSON.stringify(siteConfig));
+      applySiteConfig();
+    }
 
     const token = getActiveGitHubToken();
     const headers = token ? { 'Authorization': `token ${token}` } : {};
 
     try {
-      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`, { headers });
-      if (!res.ok) return false;
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`, { headers });
+      if (!res.ok) {
+        console.warn(`GitHub Trees API returned HTTP ${res.status} for ${owner}/${repo}`);
+        return false;
+      }
 
       const data = await res.json();
       if (!data.tree || !Array.isArray(data.tree)) return false;
@@ -867,7 +899,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function findFileInTreeByPathOrName(nodes, fileName, relPath) {
+    if (!nodes) return null;
+    for (const node of nodes) {
+      if (node.type === 'file') {
+        if (node.name === fileName || node.url === relPath) return node;
+      } else if (node.type === 'folder' && node.children) {
+        const found = findFileInTreeByPathOrName(node.children, fileName, relPath);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
   function insertRemoteFileNodeByPath(pathParts, item) {
+    const fileName = pathParts[pathParts.length - 1];
+    const relUrl = item.path;
+    const ext = (fileName.split('.').pop() || '').toLowerCase();
+
+    // Check if file already exists anywhere in treeData
+    let existingNode = findFileInTreeByPathOrName(treeData, fileName, relUrl);
+    if (existingNode) {
+      existingNode.url = relUrl;
+      if (item.size) {
+        existingNode.size = item.size > 1024 * 1024 ? (item.size / (1024 * 1024)).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB';
+      }
+      return;
+    }
+
     let currentChildren = treeData;
     for (let i = 0; i < pathParts.length - 1; i++) {
       const folderName = pathParts[i];
@@ -886,35 +945,23 @@ document.addEventListener('DOMContentLoaded', () => {
       currentChildren = folderNode.children;
     }
 
-    const fileName = pathParts[pathParts.length - 1];
-    const ext = (fileName.split('.').pop() || '').toLowerCase();
-
-    let fileNode = currentChildren.find(c => c.type === 'file' && c.name === fileName);
-    const relUrl = item.path;
-
-    if (!fileNode) {
-      fileNode = {
-        id: 'file_git_' + (item.sha ? item.sha.substring(0, 10) : Math.random().toString(36).substring(2, 9)),
-        type: 'file',
-        name: fileName,
-        ext: ext,
-        desc: `从 GitHub 仓库动态同步`,
-        size: item.size ? (item.size > 1024 * 1024 ? (item.size / (1024 * 1024)).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB') : '已检索',
-        url: relUrl
-      };
-      currentChildren.push(fileNode);
-    } else {
-      fileNode.url = relUrl;
-      if (item.size) {
-        fileNode.size = item.size > 1024 * 1024 ? (item.size / (1024 * 1024)).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB';
-      }
-    }
+    const newFileNode = {
+      id: 'file_git_' + (item.sha ? item.sha.substring(0, 10) : Math.random().toString(36).substring(2, 9)),
+      type: 'file',
+      name: fileName,
+      ext: ext,
+      desc: `从 GitHub 仓库动态同步`,
+      size: item.size ? (item.size > 1024 * 1024 ? (item.size / (1024 * 1024)).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB') : '已检索',
+      url: relUrl
+    };
+    currentChildren.push(newFileNode);
   }
 
   async function handleGlobalRefresh() {
     globalRefreshBtn.querySelector('i').classList.add('fa-spin');
     const synced = await syncGitHubRepositoryTree();
     await loadData();
+    renderTree();
     setTimeout(() => {
       globalRefreshBtn.querySelector('i').classList.remove('fa-spin');
       if (synced) {
