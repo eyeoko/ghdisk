@@ -308,6 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshFileBtn.addEventListener('click', handleActiveFileRefresh);
   copyCodeBtn.addEventListener('click', handleCopyCode);
   pasteCodeBtn.addEventListener('click', handlePasteCode);
+  saveFileBtn.addEventListener('click', saveActiveFile);
+  downloadFileBtn.addEventListener('click', downloadActiveFile);
+  showPropertiesBtn.addEventListener('click', showActiveFileProperties);
 
   // Global Modal Close Delegation (Handles any close button or backdrop click)
   document.body.addEventListener('click', (e) => {
@@ -2163,6 +2166,13 @@ document.addEventListener('DOMContentLoaded', () => {
     a.download = activeTab.fileNode.name;
     a.click();
     showToast(`已导出 ${activeTab.fileNode.name}`);
+  }
+
+  function showActiveFileProperties() {
+    const activeTab = getActiveTab();
+    if (activeTab && activeTab.fileNode) {
+      showNodeProperties(activeTab.fileNode);
+    }
   }
 
   function showNodeProperties(node) {
