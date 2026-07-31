@@ -1,0 +1,1828 @@
+/**
+ * YS168 & Obsidian Style - Full Application Script with Multi-Storage Driver and Smooth Admin Settings Prompt
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // App State
+  let siteConfig = null;
+  let treeData = null;
+  let recycleBin = [];
+  let openTabs = [];
+  let activeTabId = 'welcome';
+  let selectedNodeIds = new Set();
+  let copiedNodeClipboard = [];
+  let renamingNode = null;
+  let currentMdMode = 'render';
+  let uploadMode = 'files';
+  let selectedUploadFiles = [];
+  let isAdminUnlocked = false; // Default: Read-Only Mode for Visitors
+  let pendingAdminAction = null;
+
+  // DOM Elements - Header
+  const htmlTitle = document.getElementById('html-title');
+  const siteTitle = document.getElementById('site-title');
+  const siteSubtitle = document.getElementById('site-subtitle');
+  const siteNoticeText = document.getElementById('site-notice-text');
+  const siteLogoIcon = document.getElementById('site-logo-icon');
+  const welcomeSloganTitle = document.getElementById('welcome-slogan-title');
+  const welcomeSloganDesc = document.getElementById('welcome-slogan-desc');
+
+  // Permission & Action Buttons
+  const globalRefreshBtn = document.getElementById('global-refresh-btn');
+  const adminLockBtn = document.getElementById('admin-lock-btn');
+  const passwordModal = document.getElementById('password-modal');
+  const adminPasswordInput = document.getElementById('admin-password-input');
+  const confirmUnlockBtn = document.getElementById('confirm-unlock-btn');
+  const statusModeLabel = document.getElementById('status-mode-label');
+  const statusProviderTag = document.getElementById('status-provider-tag');
+
+  // Sidebar Elements
+  const fileTreeContainer = document.getElementById('file-tree-container');
+  const batchActionBar = document.getElementById('batch-action-bar');
+  const selectedCountBadge = document.getElementById('selected-count-badge');
+  const batchCopyBtn = document.getElementById('batch-copy-btn');
+  const batchMoveBtn = document.getElementById('batch-move-btn');
+  const batchDeleteBtn = document.getElementById('batch-delete-btn');
+  const expandAllTreeBtn = document.getElementById('expand-all-tree');
+  const collapseAllTreeBtn = document.getElementById('collapse-all-tree');
+  const addFolderBtn = document.getElementById('add-folder-btn');
+  const addFileBtn = document.getElementById('add-file-btn');
+  const pasteNodeRootBtn = document.getElementById('paste-node-root-btn');
+
+  // Main Previewer & Multi-Tabs Editor
+  const welcomeView = document.getElementById('welcome-view');
+  const editorView = document.getElementById('editor-view');
+  const editorTabs = document.getElementById('editor-tabs');
+  const currentFileName = document.getElementById('current-file-name');
+  const activeFileIcon = document.getElementById('active-file-icon');
+  const mdViewSwitch = document.getElementById('md-view-switch');
+  const modeRenderBtn = document.getElementById('mode-render-btn');
+  const modeEditBtn = document.getElementById('mode-edit-btn');
+  const saveStatusBadge = document.getElementById('save-status-badge');
+  const refreshFileBtn = document.getElementById('refresh-file-btn');
+  const copyCodeBtn = document.getElementById('copy-code-btn');
+  const pasteCodeBtn = document.getElementById('paste-code-btn');
+  const saveFileBtn = document.getElementById('save-file-btn');
+  const downloadFileBtn = document.getElementById('download-file-btn');
+  const showPropertiesBtn = document.getElementById('show-properties-btn');
+
+  const codeEditorContainer = document.getElementById('code-editor-container');
+  const markdownPreviewContainer = document.getElementById('markdown-preview-container');
+  const markdownPreviewBox = document.getElementById('markdown-preview-box');
+  const pdfPreviewContainer = document.getElementById('pdf-preview-container');
+  const pdfIframe = document.getElementById('pdf-iframe');
+  const imagePreviewContainer = document.getElementById('image-preview-container');
+  const imageElement = document.getElementById('image-element');
+
+  const codeTextarea = document.getElementById('code-textarea');
+  const lineNumbers = document.getElementById('line-numbers');
+  const statusLanguage = document.getElementById('status-language');
+  const statusLines = document.getElementById('status-lines');
+  const statusLength = document.getElementById('status-length');
+
+  // Header Action Buttons
+  const openUploadBtn = document.getElementById('open-upload-btn');
+  const openAdminSettingsBtn = document.getElementById('open-admin-settings-btn');
+  const openRecycleBinBtn = document.getElementById('open-recycle-bin-btn');
+  const recycleCountBadge = document.getElementById('recycle-count-badge');
+  const exportConfigBtn = document.getElementById('export-config-btn');
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  const searchInput = document.getElementById('search-input');
+  const clearSearchBtn = document.getElementById('clear-search');
+
+  // Upload Modal Elements
+  const uploadModal = document.getElementById('upload-modal');
+  const tabUploadFiles = document.getElementById('tab-upload-files');
+  const tabUploadFolder = document.getElementById('tab-upload-folder');
+  const uploadTargetFolderSelect = document.getElementById('upload-target-folder-select');
+  const dropzoneFilesGroup = document.getElementById('dropzone-files-group');
+  const dropzoneFolderGroup = document.getElementById('dropzone-folder-group');
+  const uploadDropzoneFiles = document.getElementById('upload-dropzone-files');
+  const uploadDropzoneFolder = document.getElementById('upload-dropzone-folder');
+  const fileInputElement = document.getElementById('file-input-element');
+  const folderInputElement = document.getElementById('folder-input-element');
+  const selectedFileInfo = document.getElementById('selected-file-info');
+  const selectedFileCount = document.getElementById('selected-file-count');
+  const selectedFileSize = document.getElementById('selected-file-size');
+  const confirmUploadFileBtn = document.getElementById('confirm-upload-file-btn');
+
+  // New File / Link Modal Elements
+  const newFileModal = document.getElementById('new-file-modal');
+  const tabTypeFile = document.getElementById('tab-type-file');
+  const tabTypeLink = document.getElementById('tab-type-link');
+  const newFileFolderSelect = document.getElementById('new-file-folder-select');
+  const fileFieldsGroup = document.getElementById('file-fields-group');
+  const linkFieldsGroup = document.getElementById('link-fields-group');
+  const newFileTitleInput = document.getElementById('new-file-title');
+  const newFileTypeSelect = document.getElementById('new-file-type');
+  const newLinkTitleInput = document.getElementById('new-link-title');
+  const newLinkUrlInput = document.getElementById('new-link-url');
+  const newFileDescInput = document.getElementById('new-file-desc');
+  const confirmCreateFileBtn = document.getElementById('confirm-create-file-btn');
+
+  // Admin Custom Settings
+  const adminSettingsModal = document.getElementById('admin-settings-modal');
+  const settingStorageProvider = document.getElementById('setting-storage-provider');
+  const hfSettingsGroup = document.getElementById('hf-settings-group');
+  const webdavSettingsGroup = document.getElementById('webdav-settings-group');
+  const settingHfRepo = document.getElementById('setting-hf-repo');
+  const settingHfBranch = document.getElementById('setting-hf-branch');
+  const settingHfToken = document.getElementById('setting-hf-token');
+  const settingWebdavUrl = document.getElementById('setting-webdav-url');
+  const settingWebdavUser = document.getElementById('setting-webdav-user');
+  const settingWebdavPass = document.getElementById('setting-webdav-pass');
+
+  const settingSiteTitle = document.getElementById('setting-site-title');
+  const settingSiteSubtitle = document.getElementById('setting-site-subtitle');
+  const settingSiteNotice = document.getElementById('setting-site-notice');
+  const settingAdminPassword = document.getElementById('setting-admin-password');
+  const settingSiteLogo = document.getElementById('setting-site-logo');
+  const settingRepoUrl = document.getElementById('setting-repo-url');
+  const settingCdnPresetSelect = document.getElementById('setting-cdn-preset-select');
+  const settingCdnPrefix = document.getElementById('setting-cdn-prefix');
+  const saveSettingsBtn = document.getElementById('save-settings-btn');
+
+  const recycleBinModal = document.getElementById('recycle-bin-modal');
+  const recycleListContainer = document.getElementById('recycle-list-container');
+  const emptyTrashBtn = document.getElementById('empty-trash-btn');
+
+  const newFolderModal = document.getElementById('new-folder-modal');
+  const parentFolderSelect = document.getElementById('parent-folder-select');
+  const newFolderNameInput = document.getElementById('new-folder-name-input');
+  const confirmCreateFolderBtn = document.getElementById('confirm-create-folder-btn');
+
+  const renameModal = document.getElementById('rename-modal');
+  const renameInput = document.getElementById('rename-input');
+  const confirmRenameBtn = document.getElementById('confirm-rename-btn');
+
+  const moveModal = document.getElementById('move-modal');
+  const targetMoveFolderSelect = document.getElementById('target-move-folder-select');
+  const confirmMoveBtn = document.getElementById('confirm-move-btn');
+
+  const propertiesModal = document.getElementById('properties-modal');
+  const propPagesUrl = document.getElementById('prop-pages-url');
+  const propRawUrl = document.getElementById('prop-raw-url');
+  const propCdnUrl = document.getElementById('prop-cdn-url');
+  const propDownloadBtn = document.getElementById('prop-download-btn');
+
+  const resizer = document.getElementById('resizer');
+  const sidebar = document.getElementById('sidebar');
+
+  // Init
+  initTheme();
+  loadData();
+  setupResizer();
+
+  // Storage Provider Toggle Event
+  settingStorageProvider.addEventListener('change', handleStorageProviderChange);
+  settingCdnPresetSelect.addEventListener('change', handleCdnPresetChange);
+
+  // Button Listeners
+  globalRefreshBtn.addEventListener('click', handleGlobalRefresh);
+  adminLockBtn.addEventListener('click', handleLockBtnClick);
+  confirmUnlockBtn.addEventListener('click', handlePasswordVerify);
+  adminPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handlePasswordVerify();
+  });
+
+  themeToggleBtn.addEventListener('click', toggleTheme);
+  expandAllTreeBtn.addEventListener('click', () => setAllFoldersExpanded(true));
+  collapseAllTreeBtn.addEventListener('click', () => setAllFoldersExpanded(false));
+  searchInput.addEventListener('input', handleSearch);
+  clearSearchBtn.addEventListener('click', clearSearch);
+  exportConfigBtn.addEventListener('click', exportConfig);
+
+  openUploadBtn.addEventListener('click', openUploadModal);
+  openAdminSettingsBtn.addEventListener('click', openAdminSettingsModal);
+  saveSettingsBtn.addEventListener('click', saveAdminSettings);
+
+  openRecycleBinBtn.addEventListener('click', openRecycleBinModal);
+  emptyTrashBtn.addEventListener('click', handleEmptyTrash);
+
+  addFolderBtn.addEventListener('click', () => openNewFolderModal());
+  addFileBtn.addEventListener('click', () => openNewFileModal());
+  pasteNodeRootBtn.addEventListener('click', () => pasteCopiedNodes('root'));
+
+  confirmCreateFolderBtn.addEventListener('click', handleCreateFolder);
+  confirmCreateFileBtn.addEventListener('click', handleCreateFileOrLink);
+
+  confirmRenameBtn.addEventListener('click', handleConfirmRename);
+  batchCopyBtn.addEventListener('click', handleBatchCopy);
+  batchMoveBtn.addEventListener('click', openMoveModal);
+  confirmMoveBtn.addEventListener('click', handleConfirmMove);
+  batchDeleteBtn.addEventListener('click', handleBatchMoveToTrash);
+
+  tabUploadFiles.addEventListener('click', () => switchUploadMode('files'));
+  tabUploadFolder.addEventListener('click', () => switchUploadMode('folder'));
+
+  uploadDropzoneFiles.addEventListener('click', () => fileInputElement.click());
+  uploadDropzoneFolder.addEventListener('click', () => folderInputElement.click());
+
+  fileInputElement.addEventListener('change', handleUploadResourceSelect);
+  folderInputElement.addEventListener('change', handleUploadResourceSelect);
+
+  confirmUploadFileBtn.addEventListener('click', handleConfirmUploadResource);
+
+  tabTypeFile.addEventListener('click', () => switchNewModalType('file'));
+  tabTypeLink.addEventListener('click', () => switchNewModalType('link'));
+
+  modeRenderBtn.addEventListener('click', () => switchMdMode('render'));
+  modeEditBtn.addEventListener('click', () => switchMdMode('edit'));
+
+  refreshFileBtn.addEventListener('click', handleActiveFileRefresh);
+  copyCodeBtn.addEventListener('click', handleCopyCode);
+  pasteCodeBtn.addEventListener('click', handlePasteCode);
+
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', closeAllModals);
+  });
+
+  document.querySelectorAll('.copy-link-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const input = document.getElementById(targetId);
+      if (input && input.value) {
+        navigator.clipboard.writeText(input.value);
+        showToast('直链地址已复制！');
+      }
+    });
+  });
+
+  codeTextarea.addEventListener('input', handleCodeInput);
+  codeTextarea.addEventListener('scroll', syncScroll);
+  codeTextarea.addEventListener('keydown', handleKeyInput);
+  saveFileBtn.addEventListener('click', saveActiveFile);
+  downloadFileBtn.addEventListener('click', downloadActiveFile);
+  showPropertiesBtn.addEventListener('click', () => {
+    const activeTab = getActiveTab();
+    if (activeTab && activeTab.fileNode) showNodeProperties(activeTab.fileNode);
+  });
+
+  function handleStorageProviderChange() {
+    const provider = settingStorageProvider.value;
+    if (provider === 'huggingface') {
+      hfSettingsGroup.style.display = 'block';
+      webdavSettingsGroup.style.display = 'none';
+    } else if (provider === 'webdav') {
+      webdavSettingsGroup.style.display = 'block';
+      hfSettingsGroup.style.display = 'none';
+    } else {
+      hfSettingsGroup.style.display = 'none';
+      webdavSettingsGroup.style.display = 'none';
+    }
+  }
+
+  function handleCdnPresetChange() {
+    const val = settingCdnPresetSelect.value;
+    const repo = settingRepoUrl.value.trim() || 'https://github.com/username/repo';
+
+    let match = repo.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    let username = match ? match[1] : 'username';
+    let reponame = match ? match[2].replace(/\.git$/, '') : 'repo';
+
+    switch (val) {
+      case 'jsdelivr':
+        settingCdnPrefix.value = `https://cdn.jsdelivr.net/gh/${username}/${reponame}@main/`;
+        break;
+      case 'fastly':
+        settingCdnPrefix.value = `https://fastly.jsdelivr.net/gh/${username}/${reponame}@main/`;
+        break;
+      case 'ghproxy':
+        settingCdnPrefix.value = `https://ghproxy.net/https://raw.githubusercontent.com/${username}/${reponame}/main/`;
+        break;
+      case 'github_raw':
+        settingCdnPrefix.value = `https://raw.githubusercontent.com/${username}/${reponame}/main/`;
+        break;
+      case 'custom':
+        settingCdnPrefix.focus();
+        showToast('现在可在文本框中自由输入任意自定义 CDN 加速 URL！');
+        break;
+    }
+  }
+
+  function openAdminSettingsModal() {
+    if (!isAdminUnlocked) {
+      pendingAdminAction = 'openSettings';
+      adminPasswordInput.value = '';
+      passwordModal.style.display = 'flex';
+      setTimeout(() => adminPasswordInput.focus(), 100);
+      return;
+    }
+
+    settingSiteTitle.value = siteConfig.title || '';
+    settingSiteSubtitle.value = siteConfig.subtitle || '';
+    settingSiteNotice.value = siteConfig.notice || '';
+    settingAdminPassword.value = siteConfig.admin_password || 'admin';
+    settingSiteLogo.value = siteConfig.logo_icon || 'fa-solid fa-gem';
+    settingRepoUrl.value = siteConfig.repo_url || '';
+    settingCdnPrefix.value = siteConfig.cdn_prefix || '';
+
+    settingStorageProvider.value = siteConfig.storage_provider || 'github';
+    settingHfRepo.value = siteConfig.hf_repo || '';
+    settingHfBranch.value = siteConfig.hf_branch || 'main';
+    settingHfToken.value = siteConfig.hf_token || '';
+    settingWebdavUrl.value = siteConfig.webdav_url || '';
+    settingWebdavUser.value = siteConfig.webdav_user || '';
+    settingWebdavPass.value = siteConfig.webdav_pass || '';
+
+    handleStorageProviderChange();
+
+    const cdn = siteConfig.cdn_prefix || '';
+    if (cdn.includes('cdn.jsdelivr.net')) settingCdnPresetSelect.value = 'jsdelivr';
+    else if (cdn.includes('fastly.jsdelivr.net')) settingCdnPresetSelect.value = 'fastly';
+    else if (cdn.includes('ghproxy.net')) settingCdnPresetSelect.value = 'ghproxy';
+    else if (cdn.includes('raw.githubusercontent.com')) settingCdnPresetSelect.value = 'github_raw';
+    else settingCdnPresetSelect.value = 'custom';
+
+    adminSettingsModal.style.display = 'flex';
+  }
+
+  function saveAdminSettings() {
+    siteConfig.title = settingSiteTitle.value.trim() || siteConfig.title;
+    siteConfig.subtitle = settingSiteSubtitle.value.trim() || siteConfig.subtitle;
+    siteConfig.notice = settingSiteNotice.value.trim() || siteConfig.notice;
+    siteConfig.admin_password = settingAdminPassword.value.trim() || siteConfig.admin_password || 'admin';
+    siteConfig.logo_icon = settingSiteLogo.value;
+    siteConfig.repo_url = settingRepoUrl.value.trim();
+    siteConfig.cdn_prefix = settingCdnPrefix.value.trim();
+
+    siteConfig.storage_provider = settingStorageProvider.value;
+    siteConfig.hf_repo = settingHfRepo.value.trim();
+    siteConfig.hf_branch = settingHfBranch.value.trim() || 'main';
+    siteConfig.hf_token = settingHfToken.value.trim();
+    siteConfig.webdav_url = settingWebdavUrl.value.trim();
+    siteConfig.webdav_user = settingWebdavUser.value.trim();
+    siteConfig.webdav_pass = settingWebdavPass.value.trim();
+
+    localStorage.setItem('ys_site_config', JSON.stringify(siteConfig));
+    applySiteConfig();
+    closeAllModals();
+    showToast('存储源与后台定制参数已保存生效！');
+  }
+
+  function openUploadModal() {
+    if (!isAdminUnlocked) {
+      pendingAdminAction = 'openUpload';
+      adminPasswordInput.value = '';
+      passwordModal.style.display = 'flex';
+      setTimeout(() => adminPasswordInput.focus(), 100);
+      return;
+    }
+    populateFolderSelects();
+    uploadModal.style.display = 'flex';
+  }
+
+  function switchUploadMode(mode) {
+    uploadMode = mode;
+    selectedUploadFiles = [];
+    selectedFileInfo.style.display = 'none';
+    confirmUploadFileBtn.disabled = true;
+
+    if (mode === 'files') {
+      tabUploadFiles.classList.add('active');
+      tabUploadFolder.classList.remove('active');
+      dropzoneFilesGroup.style.display = 'block';
+      dropzoneFolderGroup.style.display = 'none';
+    } else {
+      tabUploadFolder.classList.add('active');
+      tabUploadFiles.classList.remove('active');
+      dropzoneFilesGroup.style.display = 'none';
+      dropzoneFolderGroup.style.display = 'block';
+    }
+  }
+
+  function handleUploadResourceSelect() {
+    const input = uploadMode === 'files' ? fileInputElement : folderInputElement;
+    if (input.files && input.files.length > 0) {
+      selectedUploadFiles = Array.from(input.files);
+      selectedFileCount.textContent = selectedUploadFiles.length;
+
+      let totalSize = selectedUploadFiles.reduce((acc, f) => acc + f.size, 0);
+      selectedFileSize.textContent = totalSize > 1024 * 1024 ? (totalSize / (1024 * 1024)).toFixed(2) + ' MB' : (totalSize / 1024).toFixed(1) + ' KB';
+
+      selectedFileInfo.style.display = 'block';
+      confirmUploadFileBtn.disabled = false;
+    }
+  }
+
+  function handleConfirmUploadResource() {
+    if (selectedUploadFiles.length === 0) return;
+
+    const targetFolderId = uploadTargetFolderSelect.value;
+    const now = new Date().toLocaleString();
+
+    let processedCount = 0;
+    const totalFiles = selectedUploadFiles.length;
+
+    showToast(`正在解析上传 ${totalFiles} 个文件，请稍候...`);
+
+    if (uploadMode === 'folder') {
+      selectedUploadFiles.forEach(file => {
+        const relPath = file.webkitRelativePath || file.name;
+        const pathParts = relPath.split('/');
+
+        const isText = ['txt', 'md', 'py', 'js', 'ts', 'sh', 'json', 'yaml', 'yml', 'html', 'css', 'sql', 'c', 'cpp', 'java', 'rs', 'go'].includes(file.name.split('.').pop().toLowerCase());
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const content = e.target.result;
+          insertFileByPathParts(targetFolderId, pathParts, file, content, isText, now);
+
+          processedCount++;
+          if (processedCount === totalFiles) {
+            ensureNodeMetadata(treeData);
+            saveTreeToLocal();
+            renderTree();
+            closeAllModals();
+            showToast(`文件夹「${pathParts[0]}」及其包含的 ${totalFiles} 个文件已解析保存！`);
+          }
+        };
+
+        if (isText) reader.readAsText(file);
+        else reader.readAsDataURL(file);
+      });
+    } else {
+      selectedUploadFiles.forEach(file => {
+        const ext = file.name.split('.').pop().toLowerCase();
+        const isText = ['txt', 'md', 'py', 'js', 'ts', 'sh', 'json', 'yaml', 'yml', 'html', 'css', 'sql', 'c', 'cpp', 'java', 'rs', 'go'].includes(ext);
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const resultData = e.target.result;
+
+          const newFileNode = {
+            id: 'file_up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            type: 'file',
+            name: file.name,
+            ext: ext,
+            desc: `从本地电脑上传 (${now})`,
+            size: file.size > 1024 * 1024 ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : (file.size / 1024).toFixed(1) + ' KB',
+            createdAt: now,
+            updatedAt: now,
+            url: isText ? `files/${file.name}` : resultData,
+            content: isText ? resultData : ''
+          };
+
+          if (targetFolderId === 'root') {
+            treeData.push(newFileNode);
+          } else {
+            const folder = findNodeById(treeData, targetFolderId);
+            if (folder) {
+              if (!folder.children) folder.children = [];
+              folder.children.push(newFileNode);
+              folder.expanded = true;
+            }
+          }
+
+          processedCount++;
+          if (processedCount === totalFiles) {
+            ensureNodeMetadata(treeData);
+            saveTreeToLocal();
+            renderTree();
+            closeAllModals();
+            showToast(`共 ${totalFiles} 个文件已成功上传保存！`);
+          }
+        };
+
+        if (isText) reader.readAsText(file);
+        else reader.readAsDataURL(file);
+      });
+    }
+  }
+
+  function insertFileByPathParts(targetParentId, pathParts, file, content, isText, timestamp) {
+    let currentChildren = targetParentId === 'root' ? treeData : (findNodeById(treeData, targetParentId)?.children || treeData);
+
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      const folderName = pathParts[i];
+      let folderNode = currentChildren.find(c => c.type === 'folder' && c.name === folderName);
+
+      if (!folderNode) {
+        folderNode = {
+          id: 'folder_up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          type: 'folder',
+          name: folderName,
+          icon: 'fa-solid fa-folder',
+          expanded: true,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          children: []
+        };
+        currentChildren.push(folderNode);
+      }
+
+      currentChildren = folderNode.children;
+    }
+
+    const fileName = pathParts[pathParts.length - 1];
+    const ext = fileName.split('.').pop().toLowerCase();
+
+    const fileNode = {
+      id: 'file_up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      type: 'file',
+      name: fileName,
+      ext: ext,
+      desc: `从本地文件夹解析上传 (${timestamp})`,
+      size: file.size > 1024 * 1024 ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : (file.size / 1024).toFixed(1) + ' KB',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      url: isText ? `files/${fileName}` : content,
+      content: isText ? content : ''
+    };
+
+    currentChildren.push(fileNode);
+  }
+
+  function copyNode(node) {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    copiedNodeClipboard = [deepCloneNode(node)];
+    pasteNodeRootBtn.style.display = 'inline-flex';
+    showToast(`已深拷贝复制「${node.name}」及其全部卡片！`);
+  }
+
+  function handleBatchCopy() {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    if (selectedNodeIds.size === 0) return;
+
+    copiedNodeClipboard = [];
+    selectedNodeIds.forEach(id => {
+      const node = findNodeById(treeData, id);
+      if (node) copiedNodeClipboard.push(deepCloneNode(node));
+    });
+
+    pasteNodeRootBtn.style.display = 'inline-flex';
+    showToast(`已批量深拷贝复制 ${copiedNodeClipboard.length} 项！`);
+  }
+
+  function pasteCopiedNodes(targetFolderId) {
+    if (!isAdminUnlocked) return alert('游客只读模式下无法进行粘贴副本，请先解锁！');
+    if (copiedNodeClipboard.length === 0) return alert('剪贴板中无已复制的文件或目录！');
+
+    const now = new Date().toLocaleString();
+
+    copiedNodeClipboard.forEach(origNode => {
+      const pastedNode = deepCloneNode(origNode);
+      pastedNode.name = `${pastedNode.name}_副本`;
+      pastedNode.createdAt = now;
+      pastedNode.updatedAt = now;
+
+      if (targetFolderId === 'root') {
+        treeData.push(pastedNode);
+      } else {
+        const targetFolder = findNodeById(treeData, targetFolderId);
+        if (targetFolder) {
+          if (!targetFolder.children) targetFolder.children = [];
+          targetFolder.children.push(pastedNode);
+          targetFolder.expanded = true;
+        }
+      }
+    });
+
+    ensureNodeMetadata(treeData);
+    saveTreeToLocal();
+    renderTree();
+    showToast(`已成功粘贴 ${copiedNodeClipboard.length} 项副本！`);
+  }
+
+  function deepCloneNode(node) {
+    const cloned = JSON.parse(JSON.stringify(node));
+    regenerateNodeIdsRecursive(cloned);
+    return cloned;
+  }
+
+  function regenerateNodeIdsRecursive(node) {
+    node.id = (node.type === 'folder' ? 'folder_copy_' : 'file_copy_') + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    if (node.children) {
+      node.children.forEach(child => regenerateNodeIdsRecursive(child));
+    }
+  }
+
+  function handleGlobalRefresh() {
+    globalRefreshBtn.querySelector('i').classList.add('fa-spin');
+    loadData().then(() => {
+      setTimeout(() => {
+        globalRefreshBtn.querySelector('i').classList.remove('fa-spin');
+        showToast('目录与网盘数据已成功刷新！');
+      }, 300);
+    });
+  }
+
+  function handleActiveFileRefresh() {
+    const activeTab = getActiveTab();
+    if (!activeTab || !activeTab.fileNode) return;
+
+    const fileNode = activeTab.fileNode;
+    refreshFileBtn.querySelector('i').classList.add('fa-spin');
+
+    openFileInEditor(fileNode).then(() => {
+      setTimeout(() => {
+        refreshFileBtn.querySelector('i').classList.remove('fa-spin');
+        showToast(`已成功重新读取「${fileNode.name}」！`);
+      }, 300);
+    });
+  }
+
+  function handleCopyCode() {
+    const activeTab = getActiveTab();
+    if (!activeTab) return;
+
+    const textToCopy = codeTextarea.value || (activeTab.fileNode ? activeTab.fileNode.url : '');
+    if (!textToCopy) return alert('当前文件没有可复制的文本内容！');
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      showToast(`已成功复制「${activeTab.fileNode.name}」全部内容到剪贴板！`);
+    }).catch(err => {
+      alert('复制失败，请手动选择复制！');
+    });
+  }
+
+  function handlePasteCode() {
+    if (!isAdminUnlocked) return alert('请先解锁管理员修改权限！');
+
+    navigator.clipboard.readText().then(clipText => {
+      if (!clipText) return alert('剪贴板中无可用的纯文本内容！');
+
+      const start = codeTextarea.selectionStart;
+      const end = codeTextarea.selectionEnd;
+      codeTextarea.value = codeTextarea.value.substring(0, start) + clipText + codeTextarea.value.substring(end);
+      codeTextarea.selectionStart = codeTextarea.selectionEnd = start + clipText.length;
+
+      handleCodeInput();
+      showToast('已成功从剪贴板粘贴文本内容！');
+    }).catch(err => {
+      alert('读取剪贴板失败，请允许浏览器剪贴板权限！');
+    });
+  }
+
+  function updatePermissionUI() {
+    if (isAdminUnlocked) {
+      document.body.classList.remove('mode-readonly');
+      document.body.classList.add('mode-admin');
+
+      adminLockBtn.className = 'btn btn-sm btn-primary';
+      adminLockBtn.innerHTML = '<i class="fa-solid fa-lock-open"></i> <span id="lock-btn-text">已解锁管理 (点击加锁)</span>';
+      
+      codeTextarea.readOnly = false;
+      statusModeLabel.innerHTML = '<i class="fa-solid fa-lock-open obsidian-green"></i> 管理员编辑模式';
+
+      const activeTab = getActiveTab();
+      const isDirty = activeTab ? activeTab.isDirty : false;
+      saveStatusBadge.innerHTML = isDirty ? '<i class="fa-solid fa-circle-dot"></i> 未保存' : '<i class="fa-solid fa-circle-check"></i> 已保存';
+    } else {
+      document.body.classList.remove('mode-admin');
+      document.body.classList.add('mode-readonly');
+
+      adminLockBtn.className = 'btn btn-sm btn-warning';
+      adminLockBtn.innerHTML = '<i class="fa-solid fa-lock"></i> <span id="lock-btn-text">游客模式 (点击解锁)</span>';
+      
+      codeTextarea.readOnly = true;
+      statusModeLabel.innerHTML = '<i class="fa-solid fa-lock obsidian-yellow"></i> 游客只读模式';
+      saveStatusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> 只读预览';
+    }
+    renderTree();
+  }
+
+  function handleLockBtnClick() {
+    if (isAdminUnlocked) {
+      isAdminUnlocked = false;
+      updatePermissionUI();
+      showToast('已切换为游客只读保护模式！');
+    } else {
+      pendingAdminAction = null;
+      adminPasswordInput.value = '';
+      passwordModal.style.display = 'flex';
+      setTimeout(() => adminPasswordInput.focus(), 100);
+    }
+  }
+
+  function handlePasswordVerify() {
+    const inputPass = adminPasswordInput.value.trim();
+    const targetPass = siteConfig.admin_password || 'admin';
+
+    if (inputPass === targetPass) {
+      isAdminUnlocked = true;
+      closeAllModals();
+      updatePermissionUI();
+      showToast('密码正确！管理员编辑与上传权限已解锁。');
+
+      if (pendingAdminAction === 'openSettings') {
+        pendingAdminAction = null;
+        setTimeout(() => openAdminSettingsModal(), 150);
+      } else if (pendingAdminAction === 'openUpload') {
+        pendingAdminAction = null;
+        setTimeout(() => openUploadModal(), 150);
+      }
+    } else {
+      alert('密码错误，解锁失败！默认密码为 admin。');
+      adminPasswordInput.select();
+    }
+  }
+
+  function renderTabs() {
+    editorTabs.innerHTML = '';
+
+    const welcomeTabEl = document.createElement('div');
+    welcomeTabEl.className = `tab ${activeTabId === 'welcome' ? 'active' : ''}`;
+    welcomeTabEl.id = 'tab-welcome';
+    welcomeTabEl.innerHTML = `<i class="fa-solid fa-house"></i> 欢迎主页`;
+    welcomeTabEl.addEventListener('click', () => switchTab('welcome'));
+    editorTabs.appendChild(welcomeTabEl);
+
+    openTabs.forEach(tab => {
+      const tabEl = document.createElement('div');
+      tabEl.className = `tab ${activeTabId === tab.id ? 'active' : ''}`;
+      const iconInfo = getObsidianFileIcon(tab.fileNode);
+
+      tabEl.innerHTML = `
+        <i class="${iconInfo.icon} ${iconInfo.colorClass}"></i>
+        <span>${escapeHtml(tab.name)}</span>
+        ${tab.isDirty ? '<span class="tab-dirty-dot" title="未保存修改"></span>' : ''}
+        <i class="fa-solid fa-xmark tab-close-btn" title="关闭标签页"></i>
+      `;
+
+      tabEl.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab-close-btn')) {
+          e.stopPropagation();
+          closeTab(tab.id);
+        } else {
+          switchTab(tab.id);
+        }
+      });
+
+      editorTabs.appendChild(tabEl);
+    });
+  }
+
+  function switchTab(tabId) {
+    activeTabId = tabId;
+    renderTabs();
+
+    if (tabId === 'welcome') {
+      editorView.style.display = 'none';
+      welcomeView.style.display = 'flex';
+    } else {
+      const tab = openTabs.find(t => t.id === tabId);
+      if (tab) {
+        welcomeView.style.display = 'none';
+        editorView.style.display = 'flex';
+        renderActiveTabContent(tab);
+      }
+    }
+    renderTree();
+  }
+
+  function closeTab(tabId) {
+    const idx = openTabs.findIndex(t => t.id === tabId);
+    if (idx !== -1) {
+      const tab = openTabs[idx];
+      if (tab.isDirty && isAdminUnlocked) {
+        if (!confirm(`文件「${tab.name}」包含未保存的修改，确定要关闭吗？`)) return;
+      }
+
+      openTabs.splice(idx, 1);
+
+      if (activeTabId === tabId) {
+        if (openTabs.length > 0) {
+          const nextTab = openTabs[Math.max(0, idx - 1)];
+          switchTab(nextTab.id);
+        } else {
+          switchTab('welcome');
+        }
+      } else {
+        renderTabs();
+      }
+    }
+  }
+
+  function getActiveTab() {
+    return openTabs.find(t => t.id === activeTabId);
+  }
+
+  async function openFileInEditor(fileNode) {
+    let tab = openTabs.find(t => t.id === fileNode.id);
+    if (!tab) {
+      tab = {
+        id: fileNode.id,
+        name: fileNode.name,
+        fileNode: fileNode,
+        content: fileNode.content,
+        isDirty: false
+      };
+      openTabs.push(tab);
+    }
+    switchTab(tab.id);
+  }
+
+  async function renderActiveTabContent(tab) {
+    const fileNode = tab.fileNode;
+    currentFileName.textContent = fileNode.name;
+    const iconInfo = getObsidianFileIcon(fileNode);
+    activeFileIcon.className = `${iconInfo.icon} ${iconInfo.colorClass}`;
+
+    statusLanguage.innerHTML = `<i class="${iconInfo.icon}"></i> ${fileNode.ext ? fileNode.ext.toUpperCase() : 'FILE'}`;
+
+    const ext = (fileNode.ext || fileNode.name.split('.').pop() || '').toLowerCase();
+
+    codeEditorContainer.style.display = 'none';
+    markdownPreviewContainer.style.display = 'none';
+    pdfPreviewContainer.style.display = 'none';
+    imagePreviewContainer.style.display = 'none';
+    mdViewSwitch.style.display = 'none';
+    saveFileBtn.style.display = isAdminUnlocked ? 'inline-flex' : 'none';
+
+    if (ext === 'pdf') {
+      pdfPreviewContainer.style.display = 'flex';
+      saveFileBtn.style.display = 'none';
+      pdfIframe.src = fileNode.url;
+      return;
+    }
+
+    if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) {
+      imagePreviewContainer.style.display = 'flex';
+      saveFileBtn.style.display = 'none';
+      imageElement.src = fileNode.url;
+      return;
+    }
+
+    let content = tab.content;
+    if (content === undefined && fileNode.url && !fileNode.url.startsWith('data:')) {
+      try {
+        const res = await fetch(fileNode.url);
+        if (res.ok) {
+          content = await res.text();
+          tab.content = content;
+          fileNode.content = content;
+        }
+      } catch (err) {
+        content = `# ${fileNode.name}\n\n可在下方进行编辑与在线预览...`;
+      }
+    }
+
+    codeTextarea.value = content || '';
+    setDirtyState(tab.isDirty);
+    updateLineNumbers();
+    updateStatusBar();
+
+    if (['md', 'markdown', 'canvas'].includes(ext)) {
+      mdViewSwitch.style.display = 'inline-flex';
+      switchMdMode(currentMdMode);
+    } else {
+      codeEditorContainer.style.display = 'flex';
+    }
+  }
+
+  async function loadData() {
+    fileTreeContainer.innerHTML = `
+      <div style="padding:1.5rem; text-align:center;">
+        <i class="fa-solid fa-gem fa-spin obsidian-purple" style="font-size:1.5rem;"></i>
+        <p style="margin-top:0.5rem; font-size:0.85rem;">正在读取网盘配置与目录...</p>
+      </div>
+    `;
+
+    const savedLocalTree = localStorage.getItem('ys_tree_data');
+    const savedSiteConfig = localStorage.getItem('ys_site_config');
+    const savedRecycleBin = localStorage.getItem('ys_recycle_bin');
+
+    let defaultData = null;
+    try {
+      const res = await fetch('data.json?v=' + Date.now());
+      if (res.ok) defaultData = await res.json();
+    } catch (e) {
+      console.log('fetch(data.json) file:// 回退使用 data.js');
+    }
+
+    if (!defaultData && window.YS_DATA) {
+      defaultData = window.YS_DATA;
+    }
+
+    siteConfig = savedSiteConfig ? JSON.parse(savedSiteConfig) : (defaultData ? defaultData.site : {});
+    applySiteConfig();
+
+    treeData = savedLocalTree ? JSON.parse(savedLocalTree) : (defaultData ? defaultData.tree : []);
+    ensureNodeMetadata(treeData);
+
+    recycleBin = savedRecycleBin ? JSON.parse(savedRecycleBin) : (defaultData ? defaultData.recycleBin || [] : []);
+    cleanExpiredRecycleBin();
+
+    updatePermissionUI();
+    updateRecycleBadge();
+  }
+
+  function applySiteConfig() {
+    if (!siteConfig) return;
+    if (siteConfig.title) {
+      htmlTitle.textContent = siteConfig.title;
+      siteTitle.textContent = siteConfig.title;
+      welcomeSloganTitle.textContent = siteConfig.title;
+    }
+    if (siteConfig.subtitle) {
+      siteSubtitle.textContent = siteConfig.subtitle;
+      welcomeSloganDesc.textContent = siteConfig.subtitle;
+    }
+    if (siteConfig.notice) {
+      siteNoticeText.textContent = siteConfig.notice;
+    }
+    if (siteConfig.logo_icon) {
+      siteLogoIcon.className = `brand-logo obsidian-logo`;
+      siteLogoIcon.innerHTML = `<i class="${siteConfig.logo_icon}"></i>`;
+    }
+
+    // Status Provider Tag
+    const provider = siteConfig.storage_provider || 'github';
+    if (provider === 'huggingface') {
+      statusProviderTag.innerHTML = `<i class="fa-solid fa-cubes obsidian-purple"></i> 存储源: Hugging Face (${siteConfig.hf_repo || 'Main'})`;
+    } else if (provider === 'webdav') {
+      statusProviderTag.innerHTML = `<i class="fa-solid fa-cloud obsidian-cyan"></i> 存储源: WebDAV (挂载云盘)`;
+    } else {
+      statusProviderTag.innerHTML = `<i class="fa-brands fa-github obsidian-green"></i> 存储源: GitHub Pages / Raw`;
+    }
+  }
+
+  function switchNewModalType(type) {
+    newModeType = type;
+    if (type === 'file') {
+      tabTypeFile.classList.add('active');
+      tabTypeLink.classList.remove('active');
+      fileFieldsGroup.style.display = 'block';
+      linkFieldsGroup.style.display = 'none';
+    } else {
+      tabTypeLink.classList.add('active');
+      tabTypeFile.classList.remove('active');
+      fileFieldsGroup.style.display = 'none';
+      linkFieldsGroup.style.display = 'block';
+    }
+  }
+
+  function handleCreateFileOrLink() {
+    if (!isAdminUnlocked) return alert('游客只读模式下无法新建资源，请先解封管理员模式！');
+    const folderId = newFileFolderSelect.value;
+    const desc = newFileDescInput.value.trim();
+    const now = new Date().toLocaleString();
+
+    if (newModeType === 'link') {
+      const title = newLinkTitleInput.value.trim();
+      const url = newLinkUrlInput.value.trim();
+
+      if (!title || !url) return alert('请输入链接名称与目标网址！');
+
+      const newLinkNode = {
+        id: 'link_' + Date.now(),
+        type: 'link',
+        name: title,
+        url: url,
+        ext: 'link',
+        desc: desc || '外部网盘/快捷跳转链接',
+        createdAt: now,
+        updatedAt: now,
+        size: '-'
+      };
+
+      if (folderId === 'root') {
+        treeData.push(newLinkNode);
+      } else {
+        const folder = findNodeById(treeData, folderId);
+        if (folder) {
+          if (!folder.children) folder.children = [];
+          folder.children.push(newLinkNode);
+          folder.expanded = true;
+        }
+      }
+
+      ensureNodeMetadata(treeData);
+      saveTreeToLocal();
+      renderTree();
+      closeAllModals();
+      showToast(`网络链接「${title}」创建成功！`);
+    } else {
+      const title = newFileTitleInput.value.trim();
+      const ext = newFileTypeSelect.value;
+
+      if (!title) return alert('请输入文件标题！');
+
+      const fileName = title.endsWith('.' + ext) ? title : `${title}.${ext}`;
+
+      const newFile = {
+        id: 'file_' + Date.now(),
+        type: 'file',
+        name: fileName,
+        ext: ext,
+        desc: desc,
+        createdAt: now,
+        updatedAt: now,
+        size: '0 Bytes',
+        url: `files/${fileName}`,
+        content: `# ${fileName}\n# 创建时间: ${now}\n\n`
+      };
+
+      if (folderId === 'root') {
+        treeData.push(newFile);
+      } else {
+        const folder = findNodeById(treeData, folderId);
+        if (folder) {
+          if (!folder.children) folder.children = [];
+          folder.children.push(newFile);
+          folder.expanded = true;
+        }
+      }
+
+      ensureNodeMetadata(treeData);
+      saveTreeToLocal();
+      renderTree();
+      openFileInEditor(newFile);
+      closeAllModals();
+      showToast(`文件「${fileName}」创建成功！`);
+    }
+  }
+
+  function cleanExpiredRecycleBin() {
+    const RETENTION_MS = 60 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const initialLen = recycleBin.length;
+
+    recycleBin = recycleBin.filter(item => (now - (item.deletedAt || 0)) < RETENTION_MS);
+
+    if (recycleBin.length !== initialLen) saveRecycleBinToLocal();
+  }
+
+  function saveRecycleBinToLocal() {
+    localStorage.setItem('ys_recycle_bin', JSON.stringify(recycleBin));
+    updateRecycleBadge();
+  }
+
+  function updateRecycleBadge() {
+    recycleCountBadge.textContent = recycleBin.length;
+  }
+
+  function moveNodeToRecycleBin(node) {
+    const now = Date.now();
+    const recycledItem = {
+      ...node,
+      deletedAt: now,
+      deletedDateStr: new Date().toLocaleString(),
+      expireAt: now + (60 * 24 * 60 * 60 * 1000)
+    };
+
+    recycleBin.push(recycledItem);
+    removeNodeById(treeData, node.id);
+
+    closeTab(node.id);
+
+    saveTreeToLocal();
+    saveRecycleBinToLocal();
+    renderTree();
+  }
+
+  function handleBatchMoveToTrash() {
+    if (!isAdminUnlocked) return alert('游客只读模式下无法进行移入回收站操作，请先解锁！');
+    if (selectedNodeIds.size === 0) return;
+    if (!confirm(`确定要将选中的 ${selectedNodeIds.size} 项移放入回收站（可在回收站保留2个月并支持恢复）？`)) return;
+
+    selectedNodeIds.forEach(id => {
+      const node = findNodeById(treeData, id);
+      if (node) moveNodeToRecycleBin(node);
+    });
+
+    selectedNodeIds.clear();
+    showToast('已放入回收站（保留60天）');
+  }
+
+  function openRecycleBinModal() {
+    cleanExpiredRecycleBin();
+    renderRecycleBinList();
+    recycleBinModal.style.display = 'flex';
+  }
+
+  function renderRecycleBinList() {
+    recycleListContainer.innerHTML = '';
+    if (recycleBin.length === 0) {
+      recycleListContainer.innerHTML = `<div style="padding:2rem; text-align:center; color:var(--text-muted);">回收站为空</div>`;
+      return;
+    }
+
+    const now = Date.now();
+
+    recycleBin.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'recycle-item-row';
+
+      const ageDays = Math.floor((now - item.deletedAt) / (1000 * 60 * 60 * 24));
+      const remainingDays = 60 - ageDays;
+      const iconInfo = getObsidianFileIcon(item);
+
+      row.innerHTML = `
+        <i class="${iconInfo.icon} ${iconInfo.colorClass}" style="font-size:1.1rem;"></i>
+        <div class="recycle-info">
+          <span class="recycle-name">${escapeHtml(item.name)}</span>
+          <span class="recycle-path">原路径: ${escapeHtml(item.path || item.name)} | 删除时间: ${item.deletedDateStr || '-'}</span>
+        </div>
+        <span class="recycle-days ${remainingDays <= 5 ? 'expired' : ''}">剩余 ${remainingDays > 0 ? remainingDays : 0} 天</span>
+        <div class="recycle-actions admin-only">
+          <button class="btn btn-xs btn-outline restore-btn" title="还原资源"><i class="fa-solid fa-rotate-left"></i> 还原</button>
+          <button class="btn btn-xs btn-danger purge-btn" title="彻底删除"><i class="fa-solid fa-trash-xmark"></i> 彻底删除</button>
+        </div>
+      `;
+
+      const restoreBtn = row.querySelector('.restore-btn');
+      const purgeBtn = row.querySelector('.purge-btn');
+      if (restoreBtn) restoreBtn.addEventListener('click', () => restoreRecycledItem(item.id));
+      if (purgeBtn) purgeBtn.addEventListener('click', () => purgeRecycledItem(item.id));
+
+      recycleListContainer.appendChild(row);
+    });
+  }
+
+  function restoreRecycledItem(itemId) {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    const idx = recycleBin.findIndex(i => i.id === itemId);
+    if (idx !== -1) {
+      const item = recycleBin.splice(idx, 1)[0];
+      delete item.deletedAt;
+      delete item.deletedDateStr;
+      delete item.expireAt;
+
+      treeData.push(item);
+      saveTreeToLocal();
+      saveRecycleBinToLocal();
+      renderTree();
+      renderRecycleBinList();
+      showToast(`已成功还原「${item.name}」！`);
+    }
+  }
+
+  function purgeRecycledItem(itemId) {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    const idx = recycleBin.findIndex(i => i.id === itemId);
+    if (idx !== -1) {
+      const item = recycleBin.splice(idx, 1)[0];
+      saveRecycleBinToLocal();
+      renderRecycleBinList();
+      showToast(`已彻底删除「${item.name}」！`);
+    }
+  }
+
+  function handleEmptyTrash() {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    if (recycleBin.length === 0) return;
+    if (confirm('确定要清空回收站吗？所有被清空的项目将无法恢复。')) {
+      recycleBin = [];
+      saveRecycleBinToLocal();
+      renderRecycleBinList();
+      showToast('回收站已全部清空！');
+    }
+  }
+
+  function ensureNodeMetadata(nodes, parentPath = '') {
+    const now = new Date().toLocaleString();
+    nodes.forEach(node => {
+      if (!node.id) node.id = 'node_' + Math.random().toString(36).substring(2, 9);
+      if (!node.createdAt) node.createdAt = now;
+      if (!node.updatedAt) node.updatedAt = now;
+      node.path = parentPath ? `${parentPath} / ${node.name}` : node.name;
+
+      if (node.type === 'folder' && node.children) {
+        ensureNodeMetadata(node.children, node.path);
+      } else if (node.type === 'file') {
+        if (!node.size) {
+          const len = (node.content || '').length;
+          node.size = len > 1024 ? (len / 1024).toFixed(1) + ' KB' : (len > 0 ? len + ' Bytes' : '资源文件');
+        }
+      }
+    });
+  }
+
+  function renderTree(filterQuery = '') {
+    fileTreeContainer.innerHTML = '';
+    if (!treeData || treeData.length === 0) {
+      fileTreeContainer.innerHTML = `<div style="padding:1rem; color:var(--text-muted);">目录为空</div>`;
+      updateBatchBar();
+      return;
+    }
+
+    const rootGroup = document.createElement('div');
+    rootGroup.className = 'tree-node-group';
+
+    treeData.forEach(node => {
+      const nodeEl = createTreeNodeElement(node, filterQuery);
+      if (nodeEl) rootGroup.appendChild(nodeEl);
+    });
+
+    fileTreeContainer.appendChild(rootGroup);
+    updateBatchBar();
+  }
+
+  function createTreeNodeElement(node, filterQuery = '') {
+    const isChecked = selectedNodeIds.has(node.id);
+
+    if (node.type === 'folder') {
+      const children = node.children || [];
+      const isExpanded = filterQuery ? true : (node.expanded !== false);
+
+      const folderBox = document.createElement('div');
+      folderBox.className = 'tree-node';
+
+      const folderItem = document.createElement('div');
+      folderItem.className = 'tree-item';
+      folderItem.innerHTML = `
+        <input type="checkbox" class="tree-checkbox" ${isChecked ? 'checked' : ''}>
+        <i class="fa-solid fa-chevron-right tree-chevron ${isExpanded ? 'expanded' : ''}"></i>
+        <i class="${node.icon || 'fa-solid fa-folder'} tree-icon obsidian-yellow"></i>
+        <span class="tree-label">${escapeHtml(node.name)}</span>
+        <span class="tree-badge">${children.length}</span>
+        
+        <div class="tree-node-actions admin-only">
+          <button class="tree-action-btn add-subfolder-btn" title="新建子目录"><i class="fa-solid fa-folder-plus"></i></button>
+          <button class="tree-action-btn copy-btn" title="克隆复制目录树"><i class="fa-regular fa-copy"></i></button>
+          <button class="tree-action-btn paste-here-btn" title="粘贴副本到此目录"><i class="fa-solid fa-paste obsidian-yellow"></i></button>
+          <button class="tree-action-btn rename-btn" title="重命名"><i class="fa-solid fa-pen"></i></button>
+          <button class="tree-action-btn prop-btn" title="属性与直链"><i class="fa-solid fa-circle-info"></i></button>
+          <button class="tree-action-btn delete-btn" title="放入回收站"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+      `;
+
+      const childrenContainer = document.createElement('div');
+      childrenContainer.className = `tree-children ${isExpanded ? 'expanded' : ''}`;
+
+      let matchCount = 0;
+      children.forEach(childNode => {
+        const childEl = createTreeNodeElement(childNode, filterQuery);
+        if (childEl) {
+          childrenContainer.appendChild(childEl);
+          matchCount++;
+        }
+      });
+
+      if (filterQuery && matchCount === 0 && !node.name.toLowerCase().includes(filterQuery.toLowerCase())) {
+        return null;
+      }
+
+      const checkbox = folderItem.querySelector('.tree-checkbox');
+      if (checkbox) {
+        checkbox.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleNodeSelection(node, checkbox.checked);
+        });
+      }
+
+      folderItem.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tree-checkbox') || e.target.closest('.tree-node-actions')) return;
+        node.expanded = !node.expanded;
+        folderItem.querySelector('.tree-chevron').classList.toggle('expanded');
+        childrenContainer.classList.toggle('expanded');
+      });
+
+      const addSubfolderBtn = folderItem.querySelector('.add-subfolder-btn');
+      const copyBtn = folderItem.querySelector('.copy-btn');
+      const pasteHereBtn = folderItem.querySelector('.paste-here-btn');
+      const renameBtn = folderItem.querySelector('.rename-btn');
+      const propBtn = folderItem.querySelector('.prop-btn');
+      const deleteBtn = folderItem.querySelector('.delete-btn');
+
+      if (addSubfolderBtn) addSubfolderBtn.addEventListener('click', (e) => { e.stopPropagation(); openNewFolderModal(node.id); });
+      if (copyBtn) copyBtn.addEventListener('click', (e) => { e.stopPropagation(); copyNode(node); });
+      if (pasteHereBtn) pasteHereBtn.addEventListener('click', (e) => { e.stopPropagation(); pasteCopiedNodes(node.id); });
+      if (renameBtn) renameBtn.addEventListener('click', (e) => { e.stopPropagation(); openRenameModal(node); });
+      if (propBtn) propBtn.addEventListener('click', (e) => { e.stopPropagation(); showNodeProperties(node); });
+      if (deleteBtn) deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); confirmDeleteSingleNode(node); });
+
+      folderBox.appendChild(folderItem);
+      folderBox.appendChild(childrenContainer);
+      return folderBox;
+    } else {
+      if (filterQuery) {
+        const q = filterQuery.toLowerCase();
+        if (!node.name.toLowerCase().includes(q) && !(node.desc && node.desc.toLowerCase().includes(q))) return null;
+      }
+
+      const fileItem = document.createElement('div');
+      fileItem.className = `tree-item ${activeTabId === node.id ? 'active' : ''}`;
+      const iconInfo = getObsidianFileIcon(node);
+
+      fileItem.innerHTML = `
+        <input type="checkbox" class="tree-checkbox" ${isChecked ? 'checked' : ''}>
+        <span style="width:14px;"></span>
+        <i class="${iconInfo.icon} tree-icon ${iconInfo.colorClass}"></i>
+        <span class="tree-label">${escapeHtml(node.name)}</span>
+        
+        <div class="tree-node-actions admin-only">
+          <button class="tree-action-btn copy-btn" title="克隆复制此文件"><i class="fa-regular fa-copy"></i></button>
+          <button class="tree-action-btn rename-btn" title="重命名"><i class="fa-solid fa-pen"></i></button>
+          <button class="tree-action-btn prop-btn" title="属性与直链"><i class="fa-solid fa-circle-info"></i></button>
+          <button class="tree-action-btn delete-btn" title="放入回收站"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+      `;
+
+      const checkbox = fileItem.querySelector('.tree-checkbox');
+      if (checkbox) {
+        checkbox.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleNodeSelection(node, checkbox.checked);
+        });
+      }
+
+      fileItem.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tree-checkbox') || e.target.closest('.tree-node-actions')) return;
+        if (node.type === 'link') {
+          window.open(node.url, '_blank');
+        } else {
+          openFileInEditor(node);
+        }
+      });
+
+      const copyBtn = fileItem.querySelector('.copy-btn');
+      const renameBtn = fileItem.querySelector('.rename-btn');
+      const propBtn = fileItem.querySelector('.prop-btn');
+      const deleteBtn = fileItem.querySelector('.delete-btn');
+
+      if (copyBtn) copyBtn.addEventListener('click', (e) => { e.stopPropagation(); copyNode(node); });
+      if (renameBtn) renameBtn.addEventListener('click', (e) => { e.stopPropagation(); openRenameModal(node); });
+      if (propBtn) propBtn.addEventListener('click', (e) => { e.stopPropagation(); showNodeProperties(node); });
+      if (deleteBtn) deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); confirmDeleteSingleNode(node); });
+
+      return fileItem;
+    }
+  }
+
+  function getObsidianFileIcon(node) {
+    if (!node) return { icon: 'fa-solid fa-file', colorClass: 'obsidian-blue' };
+    if (node.type === 'link') return { icon: 'fa-solid fa-arrow-up-right-from-square', colorClass: 'obsidian-blue' };
+    const ext = (node.ext || node.name.split('.').pop() || '').toLowerCase();
+
+    switch (ext) {
+      case 'md': case 'markdown': return { icon: 'fa-brands fa-markdown', colorClass: 'obsidian-purple' };
+      case 'canvas': return { icon: 'fa-solid fa-cubes-stacked', colorClass: 'obsidian-purple' };
+      case 'pdf': return { icon: 'fa-solid fa-file-pdf', colorClass: 'obsidian-red' };
+      case 'txt': case 'rtf': return { icon: 'fa-solid fa-file-lines', colorClass: 'obsidian-blue' };
+
+      case 'py': case 'pyw': return { icon: 'fa-brands fa-python', colorClass: 'obsidian-blue' };
+      case 'js': case 'jsx': case 'mjs': return { icon: 'fa-brands fa-js', colorClass: 'obsidian-yellow' };
+      case 'ts': case 'tsx': return { icon: 'fa-solid fa-code', colorClass: 'obsidian-cyan' };
+      case 'html': case 'htm': return { icon: 'fa-brands fa-html5', colorClass: 'obsidian-orange' };
+      case 'css': case 'scss': case 'less': return { icon: 'fa-brands fa-css3-alt', colorClass: 'obsidian-cyan' };
+      case 'json': case 'json5': return { icon: 'fa-solid fa-brackets-curly', colorClass: 'obsidian-yellow' };
+      case 'yaml': case 'yml': return { icon: 'fa-solid fa-sliders', colorClass: 'obsidian-pink' };
+      case 'sh': case 'bash': case 'zsh': return { icon: 'fa-solid fa-terminal', colorClass: 'obsidian-green' };
+      case 'rs': return { icon: 'fa-brands fa-rust', colorClass: 'obsidian-orange' };
+      case 'go': return { icon: 'fa-solid fa-code', colorClass: 'obsidian-cyan' };
+
+      case 'png': case 'jpg': case 'jpeg': case 'gif': case 'svg': case 'webp':
+        return { icon: 'fa-solid fa-file-image', colorClass: 'obsidian-green' };
+
+      default: return { icon: 'fa-solid fa-file-code', colorClass: 'obsidian-blue' };
+    }
+  }
+
+  function switchMdMode(mode) {
+    currentMdMode = mode;
+    if (mode === 'render') {
+      modeRenderBtn.className = 'btn btn-xs btn-primary';
+      modeEditBtn.className = 'btn btn-xs btn-outline';
+      codeEditorContainer.style.display = 'none';
+      markdownPreviewContainer.style.display = 'flex';
+      markdownPreviewBox.innerHTML = renderSimpleMarkdown(codeTextarea.value);
+    } else {
+      modeRenderBtn.className = 'btn btn-xs btn-outline';
+      modeEditBtn.className = 'btn btn-xs btn-primary';
+      markdownPreviewContainer.style.display = 'none';
+      codeEditorContainer.style.display = 'flex';
+    }
+  }
+
+  function renderSimpleMarkdown(md) {
+    if (!md) return '<p style="color:var(--text-muted);">无内容</p>';
+    let html = escapeHtml(md);
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+    html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+    html = html.replace(/```([\s\S]*?)```/gim, '<pre><code>$1</code></pre>');
+    html = html.replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>');
+    html = html.replace(/^\- (.*$)/gim, '<li>$1</li>');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  function toggleNodeSelection(node, isChecked) {
+    if (isChecked) {
+      selectedNodeIds.add(node.id);
+      if (node.type === 'folder' && node.children) {
+        node.children.forEach(child => toggleNodeSelection(child, true));
+      }
+    } else {
+      selectedNodeIds.delete(node.id);
+      if (node.type === 'folder' && node.children) {
+        node.children.forEach(child => toggleNodeSelection(child, false));
+      }
+    }
+    renderTree();
+  }
+
+  function updateBatchBar() {
+    if (selectedNodeIds.size > 0 && isAdminUnlocked) {
+      batchActionBar.style.display = 'flex';
+      selectedCountBadge.textContent = `已选中 ${selectedNodeIds.size} 项`;
+    } else {
+      batchActionBar.style.display = 'none';
+    }
+  }
+
+  function updateLineNumbers() {
+    const lines = codeTextarea.value.split('\n').length;
+    let lineNumsHtml = '';
+    for (let i = 1; i <= lines; i++) {
+      lineNumsHtml += i + '<br>';
+    }
+    lineNumbers.innerHTML = lineNumsHtml;
+    syncScroll();
+  }
+
+  function syncScroll() {
+    lineNumbers.scrollTop = codeTextarea.scrollTop;
+  }
+
+  function handleCodeInput() {
+    if (!isAdminUnlocked) return;
+    const activeTab = getActiveTab();
+    if (activeTab) {
+      activeTab.content = codeTextarea.value;
+      if (activeTab.fileNode) {
+        activeTab.fileNode.content = codeTextarea.value;
+        activeTab.fileNode.updatedAt = new Date().toLocaleString();
+        const len = codeTextarea.value.length;
+        activeTab.fileNode.size = len > 1024 ? (len / 1024).toFixed(1) + ' KB' : len + ' Bytes';
+      }
+      setDirtyState(true);
+    }
+    updateLineNumbers();
+    updateStatusBar();
+  }
+
+  function handleKeyInput(e) {
+    if (!isAdminUnlocked) return;
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = codeTextarea.selectionStart;
+      const end = codeTextarea.selectionEnd;
+      codeTextarea.value = codeTextarea.value.substring(0, start) + "  " + codeTextarea.value.substring(end);
+      codeTextarea.selectionStart = codeTextarea.selectionEnd = start + 2;
+      handleCodeInput();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      saveActiveFile();
+    }
+  }
+
+  function updateStatusBar() {
+    const text = codeTextarea.value;
+    const lines = text.split('\n').length;
+    statusLines.innerHTML = `<i class="fa-solid fa-bars-staggered"></i> 共 ${lines} 行`;
+    statusLength.innerHTML = `<i class="fa-solid fa-text-height"></i> ${text.length} 字符`;
+  }
+
+  function setDirtyState(dirty) {
+    const activeTab = getActiveTab();
+    if (activeTab) activeTab.isDirty = dirty;
+    renderTabs();
+
+    if (!isAdminUnlocked) {
+      saveStatusBadge.className = 'status-badge clean';
+      saveStatusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> 只读预览';
+      return;
+    }
+    if (dirty) {
+      saveStatusBadge.className = 'status-badge dirty';
+      saveStatusBadge.innerHTML = '<i class="fa-solid fa-circle-dot"></i> 未保存';
+    } else {
+      saveStatusBadge.className = 'status-badge clean';
+      saveStatusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> 已保存';
+    }
+  }
+
+  function saveActiveFile() {
+    if (!isAdminUnlocked) return alert('游客只读模式下无法保存修改，请先解锁！');
+    const activeTab = getActiveTab();
+    if (!activeTab || !activeTab.fileNode) return;
+
+    activeTab.fileNode.content = codeTextarea.value;
+    activeTab.fileNode.updatedAt = new Date().toLocaleString();
+    saveTreeToLocal();
+    setDirtyState(false);
+    showToast('文件已保存！');
+  }
+
+  function saveTreeToLocal() {
+    localStorage.setItem('ys_tree_data', JSON.stringify(treeData));
+  }
+
+  function downloadActiveFile() {
+    const activeTab = getActiveTab();
+    if (!activeTab || !activeTab.fileNode) return;
+
+    const blob = new Blob([codeTextarea.value], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = activeTab.fileNode.name;
+    a.click();
+    showToast(`已导出 ${activeTab.fileNode.name}`);
+  }
+
+  function showNodeProperties(node) {
+    document.getElementById('prop-name').textContent = node.name;
+    document.getElementById('prop-ext').textContent = node.ext ? `.${node.ext.toUpperCase()}` : '-';
+    document.getElementById('prop-size').textContent = node.type === 'folder' ? `${node.children ? node.children.length : 0} 项` : (node.size || '-');
+    document.getElementById('prop-path').textContent = node.path || node.name;
+    document.getElementById('prop-created').textContent = node.createdAt || '-';
+    document.getElementById('prop-updated').textContent = node.updatedAt || '-';
+
+    const relPath = node.url || `files/${node.name}`;
+    const pagesUrl = new URL(relPath, window.location.href).href;
+    const rawUrl = (siteConfig.raw_prefix || 'https://raw.githubusercontent.com/username/repo/main/') + relPath;
+
+    let customCdnPrefix = siteConfig.cdn_prefix || 'https://cdn.jsdelivr.net/gh/username/repo@main/';
+    const cdnUrl = customCdnPrefix.endsWith('/') ? customCdnPrefix + relPath : `${customCdnPrefix}/${relPath}`;
+
+    propPagesUrl.value = pagesUrl;
+    propRawUrl.value = rawUrl;
+    propCdnUrl.value = cdnUrl;
+
+    propDownloadBtn.href = relPath;
+    propertiesModal.style.display = 'flex';
+  }
+
+  function openNewFolderModal(targetParentId = null) {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    populateFolderSelects();
+    if (targetParentId) parentFolderSelect.value = targetParentId;
+    newFolderNameInput.value = '';
+    newFolderModal.style.display = 'flex';
+  }
+
+  function handleCreateFolder() {
+    if (!isAdminUnlocked) return;
+    const name = newFolderNameInput.value.trim();
+    if (!name) return alert('请输入目录名称！');
+    const parentId = parentFolderSelect.value;
+    const now = new Date().toLocaleString();
+
+    const newFolder = {
+      id: 'folder_' + Date.now(),
+      type: 'folder',
+      name: name,
+      icon: 'fa-solid fa-folder',
+      expanded: true,
+      createdAt: now,
+      updatedAt: now,
+      children: []
+    };
+
+    if (parentId === 'root') {
+      treeData.push(newFolder);
+    } else {
+      const parent = findNodeById(treeData, parentId);
+      if (parent) {
+        if (!parent.children) parent.children = [];
+        parent.children.push(newFolder);
+        parent.expanded = true;
+      }
+    }
+
+    ensureNodeMetadata(treeData);
+    saveTreeToLocal();
+    renderTree();
+    closeAllModals();
+    showToast(`目录「${name}」创建成功！`);
+  }
+
+  function openNewFileModal() {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    populateFolderSelects();
+    newFileTitleInput.value = '';
+    newLinkTitleInput.value = '';
+    newLinkUrlInput.value = '';
+    newFileDescInput.value = '';
+    switchNewModalType('file');
+    newFileModal.style.display = 'flex';
+  }
+
+  function openRenameModal(node) {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    renamingNode = node;
+    renameInput.value = node.name;
+    renameModal.style.display = 'flex';
+  }
+
+  function handleConfirmRename() {
+    if (!isAdminUnlocked) return;
+    const newName = renameInput.value.trim();
+    if (!newName) return;
+
+    if (renamingNode) {
+      renamingNode.name = newName;
+      renamingNode.updatedAt = new Date().toLocaleString();
+      ensureNodeMetadata(treeData);
+      saveTreeToLocal();
+      renderTree();
+
+      const tab = openTabs.find(t => t.id === renamingNode.id);
+      if (tab) {
+        tab.name = newName;
+        renderTabs();
+        if (activeTabId === tab.id) currentFileName.textContent = newName;
+      }
+
+      closeAllModals();
+      showToast('重命名成功！');
+    }
+  }
+
+  function openMoveModal() {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    if (selectedNodeIds.size === 0) return;
+    populateFolderSelects();
+    document.getElementById('move-modal-subtitle').textContent = `即将移动已选中的 ${selectedNodeIds.size} 项`;
+    moveModal.style.display = 'flex';
+  }
+
+  function handleConfirmMove() {
+    if (!isAdminUnlocked) return;
+    const targetFolderId = targetMoveFolderSelect.value;
+    if (!targetFolderId) return;
+
+    const nodesToMove = [];
+    selectedNodeIds.forEach(id => {
+      const node = findNodeById(treeData, id);
+      if (node) nodesToMove.push(node);
+    });
+
+    nodesToMove.forEach(node => removeNodeById(treeData, node.id));
+
+    if (targetFolderId === 'root') {
+      nodesToMove.forEach(node => treeData.push(node));
+    } else {
+      const targetFolder = findNodeById(treeData, targetFolderId);
+      if (targetFolder) {
+        if (!targetFolder.children) targetFolder.children = [];
+        nodesToMove.forEach(node => targetFolder.children.push(node));
+        targetFolder.expanded = true;
+      }
+    }
+
+    selectedNodeIds.clear();
+    ensureNodeMetadata(treeData);
+    saveTreeToLocal();
+    renderTree();
+    closeAllModals();
+    showToast(`已成功移动项目！`);
+  }
+
+  function confirmDeleteSingleNode(node) {
+    if (!isAdminUnlocked) return alert('请先解锁管理员权限！');
+    if (confirm(`确定要将「${node.name}」移入回收站吗？`)) {
+      moveNodeToRecycleBin(node);
+      showToast(`已将 ${node.name} 放入回收站（保存60天）`);
+    }
+  }
+
+  // Utils
+  function findNodeById(nodes, id) {
+    for (let n of nodes) {
+      if (n.id === id) return n;
+      if (n.children) {
+        const found = findNodeById(n.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  function removeNodeById(nodes, id) {
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i].id === id) {
+        nodes.splice(i, 1);
+        return true;
+      }
+      if (nodes[i].children && removeNodeById(nodes[i].children, id)) return true;
+    }
+    return false;
+  }
+
+  function populateFolderSelects() {
+    const selects = [parentFolderSelect, newFileFolderSelect, targetMoveFolderSelect, uploadTargetFolderSelect];
+    selects.forEach(sel => {
+      if (!sel) return;
+      sel.innerHTML = '<option value="root">📁 [根目录 / Root]</option>';
+      addFolderOptionsRecursive(treeData, sel, '');
+    });
+  }
+
+  function addFolderOptionsRecursive(nodes, selectEl, indent) {
+    nodes.forEach(n => {
+      if (n.type === 'folder') {
+        const opt = document.createElement('option');
+        opt.value = n.id;
+        opt.textContent = `${indent}📁 ${n.name}`;
+        selectEl.appendChild(opt);
+        if (n.children) addFolderOptionsRecursive(n.children, selectEl, indent + '  ');
+      }
+    });
+  }
+
+  function closeAllModals() {
+    passwordModal.style.display = 'none';
+    uploadModal.style.display = 'none';
+    adminSettingsModal.style.display = 'none';
+    recycleBinModal.style.display = 'none';
+    newFolderModal.style.display = 'none';
+    newFileModal.style.display = 'none';
+    renameModal.style.display = 'none';
+    moveModal.style.display = 'none';
+    propertiesModal.style.display = 'none';
+  }
+
+  function exportConfig() {
+    if (!treeData) return;
+    const exportObj = {
+      site: siteConfig,
+      tree: treeData,
+      recycleBin: recycleBin
+    };
+
+    const jsonStr = JSON.stringify(exportObj, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'data.json';
+    a.click();
+
+    showToast('数据与设置已成功导出为 data.json！');
+  }
+
+  function handleSearch(e) {
+    const val = e.target.value.trim();
+    clearSearchBtn.style.display = val ? 'block' : 'none';
+    renderTree(val);
+  }
+
+  function clearSearch() {
+    searchInput.value = '';
+    clearSearchBtn.style.display = 'none';
+    renderTree('');
+  }
+
+  function setAllFoldersExpanded(expanded) {
+    function toggleNodes(nodes) {
+      nodes.forEach(n => {
+        if (n.type === 'folder') {
+          n.expanded = expanded;
+          if (n.children) toggleNodes(n.children);
+        }
+      });
+    }
+    if (treeData) {
+      toggleNodes(treeData);
+      renderTree();
+    }
+  }
+
+  function setupResizer() {
+    let isResizing = false;
+    resizer.addEventListener('mousedown', () => { isResizing = true; });
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      if (e.clientX >= 200 && e.clientX <= 550) sidebar.style.width = `${e.clientX}px`;
+    });
+    document.addEventListener('mouseup', () => { isResizing = false; });
+  }
+
+  function initTheme() {
+    const saved = localStorage.getItem('ys_theme') || 'theme-dark';
+    document.body.className = saved;
+    updateThemeIcon(saved);
+  }
+
+  function toggleTheme() {
+    const isDark = document.body.classList.contains('theme-dark');
+    const newTheme = isDark ? 'theme-light' : 'theme-dark';
+    document.body.className = newTheme;
+    localStorage.setItem('ys_theme', newTheme);
+    updateThemeIcon(newTheme);
+  }
+
+  function updateThemeIcon(theme) {
+    themeToggleBtn.innerHTML = theme === 'theme-dark' ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    const toastMsg = document.getElementById('toast-message');
+    toastMsg.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+});

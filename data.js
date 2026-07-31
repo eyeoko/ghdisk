@@ -1,0 +1,65 @@
+/**
+ * YS168 & Obsidian Style - Full Site Customization with Multi-Storage Driver Configuration
+ */
+window.YS_DATA = {
+  "site": {
+    "title": "Obsidian 风格 多源存储网盘",
+    "subtitle": "400+ 语种图标 · 支持 GitHub / Hugging Face 仓库 / WebDAV 挂载",
+    "notice": "📢 【多源存储支持】当前为游客只读模式，点击右上角【游客模式 (点击解锁)】输入密码 admin 即可配置挂载 GitHub、Hugging Face 或 WebDAV！",
+    "logo_icon": "fa-solid fa-gem",
+    "admin_password": "admin",
+    "storage_provider": "github",
+    "hf_repo": "your-username/my-dataset",
+    "hf_branch": "main",
+    "hf_token": "",
+    "webdav_url": "https://dav.jianguoyun.com/dav/",
+    "webdav_user": "",
+    "webdav_pass": "",
+    "repo_url": "https://github.com/your-username/your-repo-name",
+    "cdn_prefix": "https://cdn.jsdelivr.net/gh/your-username/your-repo-name@main/",
+    "raw_prefix": "https://raw.githubusercontent.com/your-username/your-repo-name/main/",
+    "trash_retention_days": 60
+  },
+  "tree": [
+    {
+      "id": "cat_docs",
+      "type": "folder",
+      "name": "🔮 1. Obsidian 知识库与 Markdown 笔记",
+      "icon": "fa-solid fa-gem",
+      "expanded": true,
+      "children": [
+        {
+          "id": "file_test_md_1",
+          "type": "file",
+          "name": "系统全功能测试指南与速查表.md",
+          "ext": "md",
+          "desc": "包含各种 Markdown 语法、行号编辑器与视图切换测试",
+          "createdAt": "2026-07-31 08:00:00",
+          "updatedAt": "2026-07-31 08:00:00",
+          "url": "files/docs/system_test_guide.md",
+          "content": "# 💎 Obsidian 风格 GitHub 网盘全功能测试指南\n\n欢迎来到全功能自动化测试环境！你可以通过测试以下模块验证系统的所有核心特性：\n\n---\n\n## 🔑 1. 权限解锁与只读保护测试\n- **游客只读保护**：默认状态下，顶部工具栏与侧边栏的上传、新建、重命名、移动、删除等按钮自动隐藏，文本框为 `readonly`。\n- **密码解锁管理**：点击右上角 **`🔒 游客模式 (点击解锁)`**，输入默认密码 `admin`，即可解锁全套修改、上传与剪贴板权限！\n\n---\n\n## 📂 2. 多标签页与多格式预览测试\n- **多标签页**：点击左侧不同文件，右侧顶部标签栏会同时打开多个选项卡，支持随意无缝切换与 `×` 关闭。\n- **Markdown 视图切换**：点击右上角 **【渲染预览】** / **【编辑代码】** 进行可视化切换。\n- **全格式支持**：支持嵌入阅读 **PDF 文档**、**高清图片**、以及 **带行号与 Tab 缩进的代码编辑器**！\n\n---\n\n## 🌐 3. 多存储源挂载支持\n- **GitHub Pages / Raw**：默认原生 GitHub 部署方式。\n- **Hugging Face Hub**：可关联挂载 Hugging Face 镜像数据集/模型仓库。\n- **WebDAV 挂载**：可挂载坚果云、Nextcloud、ownCloud 等标准 WebDAV 网盘！\n"
+        }
+      ]
+    },
+    {
+      "id": "cat_code",
+      "type": "folder",
+      "name": "⚡ 2. 400+ 语种代码与多格式脚本测试",
+      "icon": "fa-solid fa-code",
+      "expanded": true,
+      "children": [
+        {
+          "id": "file_test_py",
+          "type": "file",
+          "name": "Data_Backup_Service.py",
+          "ext": "py",
+          "desc": "Python3 多线程数据自动同步备份服务",
+          "createdAt": "2026-07-31 08:10:00",
+          "updatedAt": "2026-07-31 08:10:00",
+          "content": "#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\n\"\"\"\nPython3 自动同步备份服务\n\"\"\"\nimport os\nimport sys\nimport time\n\ndef run_backup_service():\n    print(\"[*] 开始启动网盘自动打包镜像服务...\")\n\nif __name__ == \"__main__\":\n    run_backup_service()\n"
+        }
+      ]
+    }
+  ],
+  "recycleBin": []
+};

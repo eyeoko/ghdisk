@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="html-title">Obsidian 风格 GitHub & HuggingFace & WebDAV 多源网盘与后台管理系统</title>
+  <meta name="description" content="支持关联 GitHub、Hugging Face 数据集仓库与 WebDAV (坚果云/Nextcloud) 存储服务、自定义CDN加速、多标签页无缝切换">
+  <link rel="stylesheet" href="style.css">
+  <!-- Google Fonts & FontAwesome icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="theme-dark mode-readonly">
+
+  <!-- Header Navigation Bar -->
+  <header class="top-header">
+    <div class="brand">
+      <div class="brand-logo obsidian-logo" id="site-logo-icon">
+        <i class="fa-solid fa-gem"></i>
+      </div>
+      <div class="brand-info">
+        <h1 id="site-title">Obsidian 风格 多源存储网盘</h1>
+        <p id="site-subtitle">支持 GitHub · Hugging Face 仓库 · WebDAV (坚果云/Nextcloud) 多源存储</p>
+      </div>
+    </div>
+
+    <!-- Header Right Controls -->
+    <div class="header-right">
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input type="text" id="search-input" placeholder="搜索文件或路径...">
+        <button id="clear-search" class="clear-btn" style="display: none;"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="header-btn-group">
+        <!-- Refresh Button -->
+        <button id="global-refresh-btn" class="btn btn-sm btn-outline" title="刷新目录与网盘数据">
+          <i class="fa-solid fa-arrows-rotate"></i> 刷新
+        </button>
+        <!-- Permission Mode Lock Toggle Button -->
+        <button id="admin-lock-btn" class="btn btn-sm btn-warning" title="点击解锁管理员模式进行编辑">
+          <i class="fa-solid fa-lock"></i> <span id="lock-btn-text">游客模式 (点击解锁)</span>
+        </button>
+
+        <!-- Always Visible Admin Settings Button (Prompts for password if locked) -->
+        <button id="open-admin-settings-btn" class="btn btn-sm btn-outline" title="后台控制面板与存储源设置">
+          <i class="fa-solid fa-gears obsidian-purple"></i> 后台定制
+        </button>
+
+        <!-- Admin Only Action Buttons -->
+        <button id="open-upload-btn" class="btn btn-sm btn-primary admin-only" title="上传本地文件或整个文件夹">
+          <i class="fa-solid fa-cloud-arrow-up"></i> 上传资源
+        </button>
+        <button id="open-recycle-bin-btn" class="btn btn-sm btn-outline admin-only" title="回收站（保存2个月）">
+          <i class="fa-solid fa-trash-arrow-up"></i> 回收站 <span id="recycle-count-badge" class="badge-count">0</span>
+        </button>
+        
+        <button id="export-config-btn" class="btn btn-sm btn-outline" title="导出配置文件"><i class="fa-solid fa-file-export"></i> 导出配置</button>
+        <button id="theme-toggle-btn" class="btn btn-sm btn-outline" title="切换主题"><i class="fa-solid fa-sun"></i></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Notice Banner Bar -->
+  <div class="notice-bar" id="notice-bar-container">
+    <div class="notice-content">
+      <i class="fa-solid fa-bullhorn notice-icon obsidian-yellow"></i>
+      <span id="site-notice-text">📢 点击【后台定制】随时输入密码 admin 即可配置挂载 GitHub、Hugging Face 或 WebDAV 云存储！</span>
+    </div>
+  </div>
+
+  <!-- Workspace Container: Left Sidebar + Right Multi-Tab Editor -->
+  <div class="workspace-container">
+    
+    <!-- Left Sidebar: Tree Explorer -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">
+          <i class="fa-solid fa-cubes-stacked"></i> 资源管理器目录
+        </div>
+        <div class="sidebar-actions">
+          <button id="add-folder-btn" class="icon-btn admin-only" title="新建目录"><i class="fa-solid fa-folder-plus"></i></button>
+          <button id="add-file-btn" class="icon-btn admin-only" title="新建文件/网络链接"><i class="fa-solid fa-file-circle-plus"></i></button>
+          <button id="paste-node-root-btn" class="icon-btn admin-only" title="粘贴被复制的文件/目录到根目录" style="display:none;"><i class="fa-solid fa-paste obsidian-yellow"></i></button>
+          <button id="collapse-all-tree" class="icon-btn" title="折叠全部目录"><i class="fa-solid fa-compress"></i></button>
+          <button id="expand-all-tree" class="icon-btn" title="展开全部目录"><i class="fa-solid fa-expand"></i></button>
+        </div>
+      </div>
+
+      <!-- Batch Action Bar -->
+      <div id="batch-action-bar" class="batch-bar admin-only" style="display: none;">
+        <span id="selected-count-badge" class="badge">已选中 0 项</span>
+        <div class="batch-btns">
+          <button id="batch-copy-btn" class="btn btn-xs btn-outline" title="批量复制"><i class="fa-regular fa-copy"></i> 复制</button>
+          <button id="batch-move-btn" class="btn btn-xs btn-outline" title="批量移动"><i class="fa-solid fa-arrows-to-dot"></i> 移动</button>
+          <button id="batch-delete-btn" class="btn btn-xs btn-danger" title="移动到回收站"><i class="fa-solid fa-trash"></i> 回收站</button>
+        </div>
+      </div>
+
+      <!-- Tree Container -->
+      <div id="file-tree-container" class="file-tree-container">
+        <!-- Injected dynamically -->
+      </div>
+    </aside>
+
+    <!-- Resizer -->
+    <div class="resizer" id="resizer"></div>
+
+    <!-- Right Workspace Area: Multi-Tab Container -->
+    <main class="main-editor-area">
+      <!-- Multi-Tabs Navigation Bar -->
+      <div class="editor-tabs" id="editor-tabs">
+        <div class="tab active" id="tab-welcome" data-tab-id="welcome">
+          <i class="fa-solid fa-house"></i> 欢迎主页
+        </div>
+      </div>
+
+      <!-- Welcome View (Shown when welcome tab active) -->
+      <div id="welcome-view" class="editor-view active">
+        <div class="welcome-box">
+          <div class="welcome-icon obsidian-purple"><i class="fa-solid fa-gem"></i></div>
+          <h2 id="welcome-slogan-title">欢迎使用 全功能 多源存储网盘</h2>
+          <p id="welcome-slogan-desc">点击右上角【后台定制】输入密码，即可无缝配置挂载 GitHub 仓库、Hugging Face 数据集与 WebDAV 网盘！</p>
+          <div class="welcome-features">
+            <div class="feature-card">
+              <i class="fa-solid fa-gears obsidian-purple"></i>
+              <h3>后台参数控制</h3>
+              <p>点击【后台定制】输入密码，随时配置标题、图标与云存储源</p>
+            </div>
+            <div class="feature-card">
+              <i class="fa-solid fa-cubes obsidian-cyan"></i>
+              <h3>Hugging Face 仓库</h3>
+              <p>支持关联 Hugging Face 数据集/模型仓库 API 挂载与同步</p>
+            </div>
+            <div class="feature-card">
+              <i class="fa-solid fa-cloud obsidian-green"></i>
+              <h3>WebDAV 统一网盘</h3>
+              <p>支持挂载坚果云、Nextcloud、ownCloud 等 WebDAV 服务</p>
+            </div>
+            <div class="feature-card">
+              <i class="fa-solid fa-shield-halved obsidian-yellow"></i>
+              <h3>密码权限控制</h3>
+              <p>游客模式只读浏览，管理模式解锁全套编辑上传</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Content Previewer / Editor View -->
+      <div id="editor-view" class="editor-view" style="display: none;">
+        <!-- Control Toolbar -->
+        <div class="editor-toolbar">
+          <div class="file-path-breadcrumb" id="file-path-breadcrumb">
+            <i id="active-file-icon" class="fa-brands fa-markdown obsidian-purple"></i>
+            <span id="current-file-name">notes.md</span>
+          </div>
+
+          <div class="editor-actions">
+            <!-- View Mode Switcher for Markdown -->
+            <div id="md-view-switch" class="btn-group-sm" style="display: none;">
+              <button id="mode-render-btn" class="btn btn-xs btn-primary"><i class="fa-solid fa-eye"></i> 渲染预览</button>
+              <button id="mode-edit-btn" class="btn btn-xs btn-outline"><i class="fa-solid fa-code"></i> 编辑代码</button>
+            </div>
+
+            <span id="save-status-badge" class="status-badge clean"><i class="fa-solid fa-circle-check"></i> 只读预览</span>
+            <button id="refresh-file-btn" class="btn btn-sm btn-outline" title="重新读取刷新当前文件"><i class="fa-solid fa-arrows-rotate"></i> 刷新</button>
+            <button id="copy-code-btn" class="btn btn-sm btn-outline" title="一键复制当前文件代码"><i class="fa-regular fa-copy"></i> 复制内容</button>
+            <button id="paste-code-btn" class="btn btn-sm btn-outline admin-only" title="从剪贴板粘贴代码到编辑器"><i class="fa-solid fa-paste"></i> 粘贴内容</button>
+            <button id="show-properties-btn" class="btn btn-sm btn-outline"><i class="fa-solid fa-circle-info"></i> 属性与直链</button>
+            <button id="save-file-btn" class="btn btn-sm btn-primary admin-only"><i class="fa-solid fa-floppy-disk"></i> 保存修改</button>
+            <button id="download-file-btn" class="btn btn-sm btn-outline"><i class="fa-solid fa-download"></i> 下载文件</button>
+          </div>
+        </div>
+
+        <!-- 1. Code Editor Container -->
+        <div id="code-editor-container" class="preview-container">
+          <div class="editor-wrapper">
+            <div class="line-numbers" id="line-numbers">1</div>
+            <textarea id="code-textarea" class="code-textarea" spellcheck="false" placeholder="在此输入或编辑脚本、文档内容..." readonly></textarea>
+          </div>
+        </div>
+
+        <!-- 2. Markdown Rich Text Preview Container -->
+        <div id="markdown-preview-container" class="preview-container" style="display: none;">
+          <div class="markdown-preview-box" id="markdown-preview-box"></div>
+        </div>
+
+        <!-- 3. PDF Reader Container -->
+        <div id="pdf-preview-container" class="preview-container" style="display: none;">
+          <iframe id="pdf-iframe" class="pdf-iframe" src="" title="PDF 预览"></iframe>
+        </div>
+
+        <!-- 4. Image Viewer Container -->
+        <div id="image-preview-container" class="preview-container" style="display: none;">
+          <div class="image-viewer-box">
+            <img id="image-element" src="" alt="图片预览">
+          </div>
+        </div>
+
+        <!-- Editor Statusbar -->
+        <div class="editor-statusbar">
+          <div class="status-left">
+            <span id="status-language"><i class="fa-solid fa-code"></i> Python</span>
+            <span id="status-lines"><i class="fa-solid fa-bars-staggered"></i> 共 1 行</span>
+            <span id="status-length"><i class="fa-solid fa-text-height"></i> 0 字符</span>
+          </div>
+          <div class="status-right">
+            <span id="status-provider-tag"><i class="fa-brands fa-github"></i> 存储源: GitHub</span>
+            <span id="status-mode-label"><i class="fa-solid fa-lock"></i> 游客只读模式</span>
+            <span>UTF-8</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Modal: Password Unlock Admin Management Mode -->
+  <div id="password-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-shield-halved obsidian-yellow"></i> 输入管理密码解锁编辑</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">当前处于游客只读保护状态。请输入管理员密码解锁后台配置、切换存储源与编辑权限：</p>
+        <div class="form-group">
+          <label>🔑 管理员密码：</label>
+          <input type="password" id="admin-password-input" class="form-control" placeholder="请输入密码 (默认 admin)" autofocus>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-close">取消</button>
+        <button id="confirm-unlock-btn" class="btn btn-primary"><i class="fa-solid fa-key"></i> 验证解锁</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Upload Local File or Whole Folder -->
+  <div id="upload-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-cloud-arrow-up obsidian-green"></i> 上传资源到网盘</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-tabs">
+          <button id="tab-upload-files" class="modal-tab-btn active"><i class="fa-solid fa-file-arrow-up"></i> 上传文件 (单/多文件)</button>
+          <button id="tab-upload-folder" class="modal-tab-btn"><i class="fa-solid fa-folder-arrow-up"></i> 上传整个文件夹/目录</button>
+        </div>
+
+        <div class="form-group">
+          <label>存放目标目录：</label>
+          <select id="upload-target-folder-select" class="form-control"></select>
+        </div>
+        
+        <div id="dropzone-files-group">
+          <div class="upload-dropzone" id="upload-dropzone-files">
+            <i class="fa-solid fa-cloud-arrow-up upload-icon obsidian-purple"></i>
+            <p>点击选择文件 或 将文件拖拽至此处</p>
+            <small style="color:var(--text-muted);">支持选择多个文件批量上传</small>
+            <input type="file" id="file-input-element" multiple style="display: none;">
+          </div>
+        </div>
+
+        <div id="dropzone-folder-group" style="display: none;">
+          <div class="upload-dropzone" id="upload-dropzone-folder">
+            <i class="fa-solid fa-folder-arrow-up upload-icon obsidian-green"></i>
+            <p>点击选择本地整个文件夹/目录</p>
+            <small style="color:var(--text-muted);">保持完整多级子目录结构嵌套解析上传</small>
+            <input type="file" id="folder-input-element" webkitdirectory directory multiple style="display: none;">
+          </div>
+        </div>
+
+        <div id="selected-file-info" style="margin-top:0.75rem; font-size:0.85rem; color:var(--primary-color); display:none;">
+          <i class="fa-solid fa-list-check"></i> 已准备上传 <span id="selected-file-count" style="font-weight:700;">0</span> 项 (<span id="selected-file-size">0 KB</span>)
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-close">取消</button>
+        <button id="confirm-upload-file-btn" class="btn btn-primary" disabled><i class="fa-solid fa-upload"></i> 确认解析并上传</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Create New File / External Link -->
+  <div id="new-file-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-file-circle-plus"></i> 新建资源或网络链接</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-tabs">
+          <button id="tab-type-file" class="modal-tab-btn active"><i class="fa-solid fa-file"></i> 新建文件</button>
+          <button id="tab-type-link" class="modal-tab-btn"><i class="fa-solid fa-link"></i> 新建网络链接/网盘跳转</button>
+        </div>
+
+        <div class="form-group">
+          <label>存放目标目录：</label>
+          <select id="new-file-folder-select" class="form-control"></select>
+        </div>
+
+        <div id="file-fields-group">
+          <div class="form-group">
+            <label>文件标题/名称：</label>
+            <input type="text" id="new-file-title" class="form-control" placeholder="例如：notes.md">
+          </div>
+          <div class="form-group">
+            <label>语种/格式后缀：</label>
+            <select id="new-file-type" class="form-control">
+              <option value="md">Markdown 笔记 (.md)</option>
+              <option value="py">Python 脚本 (.py)</option>
+              <option value="js">JavaScript (.js)</option>
+              <option value="ts">TypeScript (.ts)</option>
+              <option value="sh">Shell 脚本 (.sh)</option>
+              <option value="json">JSON 字典 (.json)</option>
+              <option value="yaml">YAML 模版 (.yaml)</option>
+              <option value="txt">纯文本 (.txt)</option>
+              <option value="pdf">PDF 文档 (.pdf)</option>
+              <option value="html">HTML 网页 (.html)</option>
+              <option value="css">CSS 样式 (.css)</option>
+              <option value="rs">Rust (.rs)</option>
+              <option value="go">Go 语言 (.go)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="link-fields-group" style="display: none;">
+          <div class="form-group">
+            <label>链接标题/名称：</label>
+            <input type="text" id="new-link-title" class="form-control" placeholder="例如：百度网盘备份入口 / Obsidian官网">
+          </div>
+          <div class="form-group">
+            <label>目标网址/URL：</label>
+            <input type="text" id="new-link-url" class="form-control" placeholder="https://pan.baidu.com/s/xxx 或 https://obsidian.md">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>资源描述（可选）：</label>
+          <input type="text" id="new-file-desc" class="form-control" placeholder="简要说明用途...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-close">取消</button>
+        <button id="confirm-create-file-btn" class="btn btn-primary">立即创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Admin System Settings & Multi-Storage Configuration -->
+  <div id="admin-settings-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-gears obsidian-purple"></i> 后台定制面板与多存储源配置</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height:70vh; overflow-y:auto;">
+        
+        <!-- Storage Driver Selector -->
+        <div class="form-group" style="background-color:var(--bg-card); padding:0.85rem; border-radius:var(--radius-md); border:1px solid var(--primary-color);">
+          <label style="color:var(--primary-color); font-weight:700;"><i class="fa-solid fa-database"></i> 选择后端存储服务驱动 (Storage Provider)：</label>
+          <select id="setting-storage-provider" class="form-control">
+            <option value="github">🐙 GitHub Pages / Raw (默认 GitHub 静态托管)</option>
+            <option value="huggingface">🤗 Hugging Face Hub (挂载模型/数据集仓库)</option>
+            <option value="webdav">📁 WebDAV 云存储服务 (坚果云 / Nextcloud / ownCloud)</option>
+          </select>
+        </div>
+
+        <!-- Hugging Face Driver Settings -->
+        <div id="hf-settings-group" style="display: none; background-color:var(--bg-card); padding:0.85rem; border-radius:var(--radius-md); margin-bottom:1rem; border:1px solid var(--border-color);">
+          <h4 style="font-size:0.85rem; color:var(--primary-color); margin-bottom:0.6rem;"><i class="fa-solid fa-cubes"></i> Hugging Face 仓库配置</h4>
+          <div class="form-group">
+            <label>Hugging Face 仓库全名 (Username/Repo)：</label>
+            <input type="text" id="setting-hf-repo" class="form-control" placeholder="例如: your-username/my-dataset">
+          </div>
+          <div class="form-group">
+            <label>HF 仓库分支 (Branch)：</label>
+            <input type="text" id="setting-hf-branch" class="form-control" value="main" placeholder="main">
+          </div>
+          <div class="form-group">
+            <label>HF Access Token (访问令牌):</label>
+            <input type="password" id="setting-hf-token" class="form-control" placeholder="hf_xxxxxxxxxxxxxxxxx">
+          </div>
+        </div>
+
+        <!-- WebDAV Driver Settings -->
+        <div id="webdav-settings-group" style="display: none; background-color:var(--bg-card); padding:0.85rem; border-radius:var(--radius-md); margin-bottom:1rem; border:1px solid var(--border-color);">
+          <h4 style="font-size:0.85rem; color:var(--accent-color); margin-bottom:0.6rem;"><i class="fa-solid fa-cloud"></i> WebDAV 统一云存储配置</h4>
+          <div class="form-group">
+            <label>WebDAV 服务器 Endpoint URL：</label>
+            <input type="text" id="setting-webdav-url" class="form-control" placeholder="https://dav.jianguoyun.com/dav/">
+          </div>
+          <div class="form-group">
+            <label>WebDAV 登录用户名：</label>
+            <input type="text" id="setting-webdav-user" class="form-control" placeholder="输入用户名/邮箱">
+          </div>
+          <div class="form-group">
+            <label>WebDAV 密码/应用授权码：</label>
+            <input type="password" id="setting-webdav-pass" class="form-control" placeholder="输入应用密码">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>📌 站点标题 (Site Title)：</label>
+          <input type="text" id="setting-site-title" class="form-control" placeholder="输入网页大标题">
+        </div>
+        <div class="form-group">
+          <label>🏷️ 站点副标题/说明：</label>
+          <input type="text" id="setting-site-subtitle" class="form-control" placeholder="输入副标题说明">
+        </div>
+        <div class="form-group">
+          <label>📢 顶部欢迎/公告语句：</label>
+          <input type="text" id="setting-site-notice" class="form-control" placeholder="输入顶部公告栏内容">
+        </div>
+        <div class="form-group">
+          <label>🔑 修改管理员解锁密码：</label>
+          <input type="password" id="setting-admin-password" class="form-control" placeholder="默认密码为 admin">
+        </div>
+        <div class="form-group">
+          <label>💎 站点 Logo 图标 (FontAwesome 类名)：</label>
+          <select id="setting-site-logo" class="form-control">
+            <option value="fa-solid fa-gem">💎 紫晶宝石 (fa-gem)</option>
+            <option value="fa-solid fa-hard-drive">💾 硬盘 (fa-hard-drive)</option>
+            <option value="fa-solid fa-folder-tree">📁 目录树 (fa-folder-tree)</option>
+            <option value="fa-solid fa-cloud">☁️ 云网盘 (fa-cloud)</option>
+            <option value="fa-solid fa-rocket">🚀 极速火箭 (fa-rocket)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>🔗 主页/仓库地址：</label>
+          <input type="text" id="setting-repo-url" class="form-control" placeholder="https://github.com/username/repo">
+        </div>
+
+        <!-- CDN Prefix Settings with Custom Input -->
+        <div class="form-group">
+          <label>🚀 CDN/加速站点节点预设：</label>
+          <select id="setting-cdn-preset-select" class="form-control">
+            <option value="jsdelivr">jsDelivr CDN (国内推荐) - https://cdn.jsdelivr.net/gh/...</option>
+            <option value="fastly">Fastly jsDelivr 镜像 - https://fastly.jsdelivr.net/gh/...</option>
+            <option value="ghproxy">GHProxy 代理镜像 - https://ghproxy.net/https://raw.githubusercontent.com/...</option>
+            <option value="github_raw">GitHub Raw 直连 - https://raw.githubusercontent.com/...</option>
+            <option value="custom">✏️ 自由自定义 CDN 加速节点 URL (输入任意镜像源/自建代理)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>🌐 自定义 CDN 加速站点节点前缀 URL：</label>
+          <input type="text" id="setting-cdn-prefix" class="form-control" placeholder="https://cdn.jsdelivr.net/gh/your-username/your-repo-name@main/">
+          <small style="color:var(--text-muted);">例如自建代理: https://my-cdn-proxy.com/your-repo/main/</small>
+        </div>
+
+        <div class="form-group">
+          <label>⌛ 回收站自动保存时间：</label>
+          <input type="number" id="setting-trash-retention" class="form-control" value="60" readonly>
+          <small style="color:var(--text-muted);">自动保存 60 天（2个月），超期节点自动清理</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-close">取消</button>
+        <button id="save-settings-btn" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> 保存存储源与站点设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Recycle Bin Management -->
+  <div id="recycle-bin-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-trash-arrow-up obsidian-red"></i> 回收站（保存2个月/60天）</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <span style="font-size:0.85rem; color:var(--text-secondary);">提示：放入回收站的文件和目录将自动保留 60 天（2个月），期满前随时可以恢复。</span>
+          <button id="empty-trash-btn" class="btn btn-xs btn-danger"><i class="fa-solid fa-broom"></i> 清空回收站</button>
+        </div>
+
+        <div class="recycle-list-container" id="recycle-list-container"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary btn-sm modal-close">关闭回收站</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Create New Folder -->
+  <div id="new-folder-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-folder-plus"></i> 新建目录/文件夹</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>上级父目录：</label>
+          <select id="parent-folder-select" class="form-control"></select>
+        </div>
+        <div class="form-group">
+          <label>目录名称：</label>
+          <input type="text" id="new-folder-name-input" class="form-control" placeholder="例如：Python工具库">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-close">取消</button>
+        <button id="confirm-create-folder-btn" class="btn btn-primary">创建目录</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Rename Node -->
+  <div id="rename-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-pen-to-square"></i> 重命名资源</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>新的名称：</label>
+          <input type="text" id="rename-input" class="form-control" placeholder="输入新的名称">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-close">取消</button>
+        <button id="confirm-rename-btn" class="btn btn-primary">确认修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Batch Move -->
+  <div id="move-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-arrows-to-dot"></i> 移动资源到目标目录</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.875rem; color:var(--text-secondary); margin-bottom:1rem;" id="move-modal-subtitle">已选中要移动的资源项</p>
+        <div class="form-group">
+          <label>选择目标移动目录：</label>
+          <select id="target-move-folder-select" class="form-control"></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline modal-close">取消</button>
+        <button id="confirm-move-btn" class="btn btn-primary">确认移动</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Properties & Download Links -->
+  <div id="properties-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-circle-info"></i> 资源属性与直链下载</h3>
+        <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <table class="properties-table">
+          <tr><th>资源名称：</th><td id="prop-name">-</td></tr>
+          <tr><th>格式后缀：</th><td id="prop-ext">-</td></tr>
+          <tr><th>占用大小：</th><td id="prop-size">-</td></tr>
+          <tr><th>仓库内相对路径：</th><td id="prop-path">-</td></tr>
+          <tr><th>创建时间：</th><td id="prop-created">-</td></tr>
+          <tr><th>上次修改：</th><td id="prop-updated">-</td></tr>
+          <tr>
+            <th>GitHub Pages 直链：</th>
+            <td>
+              <div class="link-input-group">
+                <input type="text" id="prop-pages-url" class="form-control form-control-sm" readonly>
+                <button class="btn btn-xs btn-outline copy-link-btn" data-target="prop-pages-url"><i class="fa-regular fa-copy"></i></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <th>GitHub Raw 直链：</th>
+            <td>
+              <div class="link-input-group">
+                <input type="text" id="prop-raw-url" class="form-control form-control-sm" readonly>
+                <button class="btn btn-xs btn-outline copy-link-btn" data-target="prop-raw-url"><i class="fa-regular fa-copy"></i></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <th>自定义 CDN 直链：</th>
+            <td>
+              <div class="link-input-group">
+                <input type="text" id="prop-cdn-url" class="form-control form-control-sm" readonly>
+                <button class="btn btn-xs btn-outline copy-link-btn" data-target="prop-cdn-url"><i class="fa-regular fa-copy"></i></button>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <a id="prop-download-btn" href="#" target="_blank" class="btn btn-primary btn-sm"><i class="fa-solid fa-download"></i> 立即下载该文件</a>
+        <button class="btn btn-outline btn-sm modal-close">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <i class="fa-solid fa-circle-check toast-icon"></i>
+    <span id="toast-message">操作成功</span>
+  </div>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
