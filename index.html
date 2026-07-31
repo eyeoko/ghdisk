@@ -370,6 +370,16 @@
           </select>
         </div>
 
+        <!-- GitHub Driver Direct API Upload Settings -->
+        <div id="github-settings-group" style="background-color:var(--bg-card); padding:0.85rem; border-radius:var(--radius-md); margin-bottom:1rem; border:1px solid var(--border-color);">
+          <h4 style="font-size:0.85rem; color:var(--primary-color); margin-bottom:0.6rem;"><i class="fa-brands fa-github"></i> GitHub 直链与 API 实时部署配置</h4>
+          <div class="form-group">
+            <label>GitHub Personal Access Token (PAT 访问令牌)：</label>
+            <input type="password" id="setting-github-token" class="form-control" placeholder="ghp_xxxxxxxxxxxxxxxxx">
+            <small style="color:var(--text-muted); font-size:0.75rem;">填入 Token 后，通过网页上传的文件将自动实步 Commit 提交到 GitHub 仓库并即时生效！</small>
+          </div>
+        </div>
+
         <!-- Hugging Face Driver Settings -->
         <div id="hf-settings-group" style="display: none; background-color:var(--bg-card); padding:0.85rem; border-radius:var(--radius-md); margin-bottom:1rem; border:1px solid var(--border-color);">
           <h4 style="font-size:0.85rem; color:var(--primary-color); margin-bottom:0.6rem;"><i class="fa-solid fa-cubes"></i> Hugging Face 仓库配置</h4>

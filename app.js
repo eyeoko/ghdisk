@@ -123,6 +123,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Admin Custom Settings
   const adminSettingsModal = document.getElementById('admin-settings-modal');
   const settingStorageProvider = document.getElementById('setting-storage-provider');
+  const githubSettingsGroup = document.getElementById('github-settings-group');
+  const settingGithubToken = document.getElementById('setting-github-token');
   const hfSettingsGroup = document.getElementById('hf-settings-group');
   const webdavSettingsGroup = document.getElementById('webdav-settings-group');
   const settingHfRepo = document.getElementById('setting-hf-repo');
@@ -168,10 +170,51 @@ document.addEventListener('DOMContentLoaded', () => {
   const resizer = document.getElementById('resizer');
   const sidebar = document.getElementById('sidebar');
 
+  // IndexedDB Key-Value Blob Store
+  let dbInstance = null;
+  function initIndexedDB() {
+    return new Promise((resolve) => {
+      if (!window.indexedDB) return resolve(null);
+      const req = indexedDB.open('YSDriveDB', 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('files')) db.createObjectStore('files');
+      };
+      req.onsuccess = (e) => { dbInstance = e.target.result; resolve(dbInstance); };
+      req.onerror = () => resolve(null);
+    });
+  }
+
+  function saveFileToIDB(id, data) {
+    if (!dbInstance) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      try {
+        const tx = dbInstance.transaction('files', 'readwrite');
+        tx.objectStore('files').put(data, id);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      } catch (e) { resolve(false); }
+    });
+  }
+
+  function getFileFromIDB(id) {
+    if (!dbInstance) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      try {
+        const tx = dbInstance.transaction('files', 'readonly');
+        const req = tx.objectStore('files').get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+  }
+
   // Init
   initTheme();
+  initIndexedDB();
   loadData();
   setupResizer();
+  setupDropzoneEvents();
 
   // Storage Provider Toggle Event
   settingStorageProvider.addEventListener('change', handleStorageProviderChange);
@@ -263,10 +306,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (provider === 'huggingface') {
       hfSettingsGroup.style.display = 'block';
       webdavSettingsGroup.style.display = 'none';
+      if (githubSettingsGroup) githubSettingsGroup.style.display = 'none';
     } else if (provider === 'webdav') {
       webdavSettingsGroup.style.display = 'block';
       hfSettingsGroup.style.display = 'none';
+      if (githubSettingsGroup) githubSettingsGroup.style.display = 'none';
     } else {
+      if (githubSettingsGroup) githubSettingsGroup.style.display = 'block';
       hfSettingsGroup.style.display = 'none';
       webdavSettingsGroup.style.display = 'none';
     }
@@ -318,6 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
     settingCdnPrefix.value = siteConfig.cdn_prefix || '';
 
     settingStorageProvider.value = siteConfig.storage_provider || 'github';
+    if (settingGithubToken) settingGithubToken.value = siteConfig.github_token || '';
     settingHfRepo.value = siteConfig.hf_repo || '';
     settingHfBranch.value = siteConfig.hf_branch || 'main';
     settingHfToken.value = siteConfig.hf_token || '';
@@ -347,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
     siteConfig.cdn_prefix = settingCdnPrefix.value.trim();
 
     siteConfig.storage_provider = settingStorageProvider.value;
+    if (settingGithubToken) siteConfig.github_token = settingGithubToken.value.trim();
     siteConfig.hf_repo = settingHfRepo.value.trim();
     siteConfig.hf_branch = settingHfBranch.value.trim() || 'main';
     siteConfig.hf_token = settingHfToken.value.trim();
@@ -358,6 +406,48 @@ document.addEventListener('DOMContentLoaded', () => {
     applySiteConfig();
     closeAllModals();
     showToast('存储源与后台定制参数已保存生效！');
+  }
+
+  function setupDropzoneEvents() {
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.add('dragover');
+    };
+
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.remove('dragover');
+    };
+
+    const handleDrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.remove('dragover');
+
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        selectedUploadFiles = Array.from(e.dataTransfer.files);
+        selectedFileCount.textContent = selectedUploadFiles.length;
+
+        let totalSize = selectedUploadFiles.reduce((acc, f) => acc + f.size, 0);
+        selectedFileSize.textContent = totalSize > 1024 * 1024 ? (totalSize / (1024 * 1024)).toFixed(2) + ' MB' : (totalSize / 1024).toFixed(1) + ' KB';
+
+        selectedFileInfo.style.display = 'block';
+        confirmUploadFileBtn.disabled = false;
+      }
+    };
+
+    [uploadDropzoneFiles, uploadDropzoneFolder].forEach(dropzone => {
+      if (!dropzone) return;
+      dropzone.addEventListener('dragover', handleDragOver);
+      dropzone.addEventListener('dragenter', handleDragOver);
+      dropzone.addEventListener('dragleave', handleDragLeave);
+      dropzone.addEventListener('drop', handleDrop);
+    });
+
+    window.addEventListener('dragover', (e) => e.preventDefault(), false);
+    window.addEventListener('drop', (e) => e.preventDefault(), false);
   }
 
   function openUploadModal() {
@@ -405,92 +495,172 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function handleConfirmUploadResource() {
+  function readFileAsText(file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result || '');
+      reader.onerror = () => resolve('');
+      reader.readAsText(file);
+    });
+  }
+
+  function readFileAsDataURL(file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result || '');
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadFileToGitHub(filename, base64Content) {
+    const token = siteConfig.github_token || '';
+    const repoUrl = siteConfig.repo_url || '';
+    if (!token || !repoUrl) return null;
+
+    let match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (!match) return null;
+    const owner = match[1];
+    const repo = match[2].replace(/\.git$/, '');
+
+    const path = `files/${filename}`;
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+
+    try {
+      let sha = null;
+      const getRes = await fetch(apiUrl, {
+        headers: { 'Authorization': `token ${token}` }
+      });
+      if (getRes.ok) {
+        const fileInfo = await getRes.json();
+        sha = fileInfo.sha;
+      }
+
+      const putBody = {
+        message: `Upload ${filename} via ghdisk netdisk`,
+        content: base64Content,
+        branch: 'main'
+      };
+      if (sha) putBody.sha = sha;
+
+      const putRes = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github+json'
+        },
+        body: JSON.stringify(putBody)
+      });
+
+      if (putRes.ok) {
+        const resData = await putRes.json();
+        return resData.content ? resData.content.download_url : `files/${filename}`;
+      }
+    } catch (err) {
+      console.warn('GitHub API upload failed:', err);
+    }
+    return null;
+  }
+
+  async function handleConfirmUploadResource() {
     if (selectedUploadFiles.length === 0) return;
+
+    confirmUploadFileBtn.disabled = true;
+    confirmUploadFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 上传中...';
 
     const targetFolderId = uploadTargetFolderSelect.value;
     const now = new Date().toLocaleString();
-
-    let processedCount = 0;
     const totalFiles = selectedUploadFiles.length;
 
     showToast(`正在解析上传 ${totalFiles} 个文件，请稍候...`);
 
-    if (uploadMode === 'folder') {
-      selectedUploadFiles.forEach(file => {
+    let count = 0;
+    for (const file of selectedUploadFiles) {
+      count++;
+      showToast(`正在处理 ${count}/${totalFiles}: ${file.name}`);
+
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const isText = ['txt', 'md', 'py', 'js', 'ts', 'sh', 'json', 'yaml', 'yml', 'html', 'css', 'sql', 'c', 'cpp', 'java', 'rs', 'go'].includes(ext);
+
+      let textContent = '';
+      let dataUrl = '';
+      let base64Only = '';
+
+      if (isText) {
+        textContent = await readFileAsText(file);
+        dataUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(textContent)}`;
+        base64Only = btoa(unescape(encodeURIComponent(textContent)));
+      } else {
+        dataUrl = await readFileAsDataURL(file);
+        base64Only = dataUrl.includes(',') ? dataUrl.split(',')[1] : '';
+      }
+
+      const fileId = 'file_up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+
+      // Save to IndexedDB
+      await saveFileToIDB(fileId, {
+        content: textContent,
+        dataUrl: dataUrl
+      });
+
+      // GitHub Direct API Push
+      let githubUrl = null;
+      if (siteConfig.storage_provider === 'github' && siteConfig.github_token) {
+        githubUrl = await uploadFileToGitHub(file.name, base64Only);
+      }
+
+      const fileUrl = githubUrl || (isText ? `files/${file.name}` : dataUrl);
+
+      if (uploadMode === 'folder') {
         const relPath = file.webkitRelativePath || file.name;
         const pathParts = relPath.split('/');
-
-        const isText = ['txt', 'md', 'py', 'js', 'ts', 'sh', 'json', 'yaml', 'yml', 'html', 'css', 'sql', 'c', 'cpp', 'java', 'rs', 'go'].includes(file.name.split('.').pop().toLowerCase());
-
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const content = e.target.result;
-          insertFileByPathParts(targetFolderId, pathParts, file, content, isText, now);
-
-          processedCount++;
-          if (processedCount === totalFiles) {
-            ensureNodeMetadata(treeData);
-            saveTreeToLocal();
-            renderTree();
-            closeAllModals();
-            showToast(`文件夹「${pathParts[0]}」及其包含的 ${totalFiles} 个文件已解析保存！`);
-          }
+        insertFileByPathParts(targetFolderId, pathParts, file, textContent, fileUrl, fileId, now);
+      } else {
+        const newFileNode = {
+          id: fileId,
+          type: 'file',
+          name: file.name,
+          ext: ext,
+          desc: `从本地电脑上传 (${now})`,
+          size: file.size > 1024 * 1024 ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : (file.size / 1024).toFixed(1) + ' KB',
+          createdAt: now,
+          updatedAt: now,
+          url: fileUrl,
+          content: textContent
         };
 
-        if (isText) reader.readAsText(file);
-        else reader.readAsDataURL(file);
-      });
-    } else {
-      selectedUploadFiles.forEach(file => {
-        const ext = file.name.split('.').pop().toLowerCase();
-        const isText = ['txt', 'md', 'py', 'js', 'ts', 'sh', 'json', 'yaml', 'yml', 'html', 'css', 'sql', 'c', 'cpp', 'java', 'rs', 'go'].includes(ext);
-
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const resultData = e.target.result;
-
-          const newFileNode = {
-            id: 'file_up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-            type: 'file',
-            name: file.name,
-            ext: ext,
-            desc: `从本地电脑上传 (${now})`,
-            size: file.size > 1024 * 1024 ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : (file.size / 1024).toFixed(1) + ' KB',
-            createdAt: now,
-            updatedAt: now,
-            url: isText ? `files/${file.name}` : resultData,
-            content: isText ? resultData : ''
-          };
-
-          if (targetFolderId === 'root') {
-            treeData.push(newFileNode);
-          } else {
-            const folder = findNodeById(treeData, targetFolderId);
-            if (folder) {
-              if (!folder.children) folder.children = [];
-              folder.children.push(newFileNode);
-              folder.expanded = true;
-            }
+        if (targetFolderId === 'root') {
+          treeData.push(newFileNode);
+        } else {
+          const folder = findNodeById(treeData, targetFolderId);
+          if (folder) {
+            if (!folder.children) folder.children = [];
+            folder.children.push(newFileNode);
+            folder.expanded = true;
           }
-
-          processedCount++;
-          if (processedCount === totalFiles) {
-            ensureNodeMetadata(treeData);
-            saveTreeToLocal();
-            renderTree();
-            closeAllModals();
-            showToast(`共 ${totalFiles} 个文件已成功上传保存！`);
-          }
-        };
-
-        if (isText) reader.readAsText(file);
-        else reader.readAsDataURL(file);
-      });
+        }
+      }
     }
+
+    ensureNodeMetadata(treeData);
+    saveTreeToLocal();
+    renderTree();
+
+    // Reset input states
+    fileInputElement.value = '';
+    folderInputElement.value = '';
+    selectedUploadFiles = [];
+    selectedFileInfo.style.display = 'none';
+
+    confirmUploadFileBtn.disabled = false;
+    confirmUploadFileBtn.innerHTML = '<i class="fa-solid fa-upload"></i> 确认解析并上传';
+
+    closeAllModals();
+    showToast(`已成功同步并关联保存 ${totalFiles} 个文件！`);
   }
 
-  function insertFileByPathParts(targetParentId, pathParts, file, content, isText, timestamp) {
+  function insertFileByPathParts(targetParentId, pathParts, file, textContent, fileUrl, fileId, timestamp) {
     let currentChildren = targetParentId === 'root' ? treeData : (findNodeById(treeData, targetParentId)?.children || treeData);
 
     for (let i = 0; i < pathParts.length - 1; i++) {
@@ -518,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const ext = fileName.split('.').pop().toLowerCase();
 
     const fileNode = {
-      id: 'file_up_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      id: fileId,
       type: 'file',
       name: fileName,
       ext: ext,
@@ -526,8 +696,8 @@ document.addEventListener('DOMContentLoaded', () => {
       size: file.size > 1024 * 1024 ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : (file.size / 1024).toFixed(1) + ' KB',
       createdAt: timestamp,
       updatedAt: timestamp,
-      url: isText ? `files/${fileName}` : content,
-      content: isText ? content : ''
+      url: fileUrl,
+      content: textContent
     };
 
     currentChildren.push(fileNode);
@@ -830,6 +1000,18 @@ document.addEventListener('DOMContentLoaded', () => {
     mdViewSwitch.style.display = 'none';
     saveFileBtn.style.display = isAdminUnlocked ? 'inline-flex' : 'none';
 
+    // Retrieve from IndexedDB if available
+    const idbData = await getFileFromIDB(fileNode.id);
+    if (idbData) {
+      if (idbData.content && !tab.content) {
+        tab.content = idbData.content;
+        fileNode.content = idbData.content;
+      }
+      if (idbData.dataUrl) {
+        fileNode.url = idbData.dataUrl;
+      }
+    }
+
     if (ext === 'pdf') {
       pdfPreviewContainer.style.display = 'flex';
       saveFileBtn.style.display = 'none';
@@ -844,7 +1026,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    let content = tab.content;
+    let content = tab.content || fileNode.content;
     if (content === undefined && fileNode.url && !fileNode.url.startsWith('data:')) {
       try {
         const res = await fetch(fileNode.url);
@@ -1511,8 +1693,30 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('文件已保存！');
   }
 
+  function cleanTreeForLocalStorage(nodes) {
+    if (!nodes) return [];
+    return nodes.map(node => {
+      const copy = { ...node };
+      if (copy.children) {
+        copy.children = cleanTreeForLocalStorage(copy.children);
+      }
+      if (copy.url && copy.url.startsWith('data:') && copy.url.length > 1024) {
+        copy.url = '';
+      }
+      if (copy.content && copy.content.length > 50000) {
+        copy.content = '';
+      }
+      return copy;
+    });
+  }
+
   function saveTreeToLocal() {
-    localStorage.setItem('ys_tree_data', JSON.stringify(treeData));
+    try {
+      const lightTree = cleanTreeForLocalStorage(treeData);
+      localStorage.setItem('ys_tree_data', JSON.stringify(lightTree));
+    } catch (e) {
+      console.warn('LocalStorage quota exceeded, Relying on IndexedDB storage:', e);
+    }
   }
 
   function downloadActiveFile() {
