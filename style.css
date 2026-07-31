@@ -921,3 +921,138 @@ body {
   .sidebar { width: 100%; max-width: 100%; height: 250px; }
   .resizer { display: none; }
 }
+
+/* K-Vault Style Storage Source Badge & Pulsing Green Light */
+.storage-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.8rem;
+  background: var(--bg-card, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main, #e2e8f0);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.storage-source-badge:hover {
+  background: var(--bg-main, rgba(255, 255, 255, 0.1));
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+.status-pulse-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 8px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.status-pulse-dot.green {
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.status-pulse-dot.green::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border-radius: 50%;
+  border: 2px solid #10b981;
+  animation: pulseRing 2s infinite ease-out;
+}
+
+.status-pulse-dot.red {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+.status-pulse-dot.yellow {
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+@keyframes pulseRing {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* Storage Backend Cards in Switcher Modal */
+.storage-backend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.storage-backend-card {
+  padding: 1rem 1.1rem;
+  background: var(--bg-card, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  transition: all 0.25s ease;
+}
+
+.storage-backend-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.storage-backend-card.active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.06);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.12);
+}
+
+.backend-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.45rem;
+}
+
+.backend-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.backend-status-badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.backend-status-badge.green {
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.backend-status-badge.red {
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.backend-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.8rem;
+  line-height: 1.4;
+}
+
+.backend-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+

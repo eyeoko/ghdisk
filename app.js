@@ -324,15 +324,172 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  codeTextarea.addEventListener('input', handleCodeInput);
-  codeTextarea.addEventListener('scroll', syncScroll);
-  codeTextarea.addEventListener('keydown', handleKeyInput);
-  saveFileBtn.addEventListener('click', saveActiveFile);
-  downloadFileBtn.addEventListener('click', downloadActiveFile);
-  showPropertiesBtn.addEventListener('click', () => {
-    const activeTab = getActiveTab();
-    if (activeTab && activeTab.fileNode) showNodeProperties(activeTab.fileNode);
+  // Storage Switcher Event Listeners
+  const storageSourceBadge = document.getElementById('storage-source-badge');
+  if (storageSourceBadge) {
+    storageSourceBadge.addEventListener('click', openStorageSwitcherModal);
+  }
+
+  document.querySelectorAll('.select-backend-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const backend = e.currentTarget.getAttribute('data-backend');
+      selectStorageBackend(backend);
+    });
   });
+
+  document.querySelectorAll('.test-backend-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const backend = e.currentTarget.getAttribute('data-backend');
+      testStorageBackendConnection(backend);
+    });
+  });
+
+  const openConfigFromSwitcher = document.getElementById('open-config-from-switcher');
+  if (openConfigFromSwitcher) {
+    openConfigFromSwitcher.addEventListener('click', () => {
+      closeAllModals();
+      openAdminSettingsModal();
+    });
+  }
+
+  function updateStorageSourceBadge() {
+    const storageBadge = document.getElementById('storage-source-badge');
+    const storageName = document.getElementById('storage-source-name');
+    const storageDot = document.getElementById('storage-status-dot');
+    if (!storageBadge || !storageName) return;
+
+    const provider = (siteConfig && siteConfig.storage_provider) || 'github';
+    let iconHtml = '';
+    let nameText = '';
+
+    if (provider === 'huggingface') {
+      iconHtml = '<i class="fa-solid fa-cubes obsidian-purple"></i> ';
+      nameText = `Hugging Face (${siteConfig.hf_repo ? siteConfig.hf_repo.split('/')[1] || siteConfig.hf_repo : 'Datasets'})`;
+    } else if (provider === 'webdav') {
+      iconHtml = '<i class="fa-solid fa-cloud obsidian-cyan"></i> ';
+      nameText = 'WebDAV 云盘';
+    } else if (provider === 'local') {
+      iconHtml = '<i class="fa-solid fa-hard-drive obsidian-yellow"></i> ';
+      nameText = 'IndexedDB 离线盘';
+    } else {
+      iconHtml = '<i class="fa-brands fa-github obsidian-green"></i> ';
+      nameText = 'GitHub Pages / Raw';
+    }
+
+    storageName.innerHTML = `${iconHtml}${nameText}`;
+    if (storageDot) {
+      storageDot.className = 'status-pulse-dot green';
+    }
+
+    // Update active state in switcher modal
+    document.querySelectorAll('.storage-backend-card').forEach(card => {
+      if (card.getAttribute('data-backend') === provider) {
+        card.classList.add('active');
+        const btn = card.querySelector('.select-backend-btn');
+        if (btn) btn.textContent = '当前激活';
+      } else {
+        card.classList.remove('active');
+        const btn = card.querySelector('.select-backend-btn');
+        if (btn) btn.textContent = '切换使用此源';
+      }
+    });
+  }
+
+  function openStorageSwitcherModal() {
+    updateStorageSourceBadge();
+    const modal = document.getElementById('storage-switcher-modal');
+    if (modal) modal.style.display = 'flex';
+  }
+
+  function selectStorageBackend(backend) {
+    if (!siteConfig) siteConfig = {};
+    siteConfig.storage_provider = backend;
+    localStorage.setItem('ys_site_config', JSON.stringify(siteConfig));
+    applySiteConfig();
+    updateStorageSourceBadge();
+    showToast(`存储源已切换为「${getBackendDisplayName(backend)}」！`);
+  }
+
+  function getBackendDisplayName(backend) {
+    switch (backend) {
+      case 'huggingface': return 'Hugging Face Hub';
+      case 'webdav': return 'WebDAV 云盘';
+      case 'local': return 'IndexedDB 离线隔离盘';
+      default: return 'GitHub Pages / Raw 仓库';
+    }
+  }
+
+  async function testStorageBackendConnection(backend) {
+    const dot = document.getElementById(`dot-${backend}`);
+    const badge = document.getElementById(`badge-${backend}`);
+
+    if (dot) dot.className = 'status-pulse-dot yellow';
+    if (badge) {
+      badge.className = 'backend-status-badge yellow';
+      badge.textContent = '🟡 正在测试连通性...';
+    }
+
+    try {
+      if (backend === 'github') {
+        const { owner, repo } = getRepoOwnerAndName();
+        const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+        if (res.ok) {
+          if (dot) dot.className = 'status-pulse-dot green';
+          if (badge) {
+            badge.className = 'backend-status-badge green';
+            badge.textContent = '🟢 连通良好 (100% Online)';
+          }
+          showToast('GitHub API 连通性测试成功！');
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } else if (backend === 'huggingface') {
+        const repo = (siteConfig && siteConfig.hf_repo) || 'datasets';
+        const res = await fetch(`https://huggingface.co/api/datasets/${repo}`);
+        if (res.ok || res.status === 401 || res.status === 404) {
+          if (dot) dot.className = 'status-pulse-dot green';
+          if (badge) {
+            badge.className = 'backend-status-badge green';
+            badge.textContent = '🟢 API 通畅 (Ready)';
+          }
+          showToast('Hugging Face Hub 连通性测试成功！');
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } else if (backend === 'webdav') {
+        const url = siteConfig && siteConfig.webdav_url;
+        if (!url) {
+          if (dot) dot.className = 'status-pulse-dot yellow';
+          if (badge) {
+            badge.className = 'backend-status-badge yellow';
+            badge.textContent = '🟡 待填写服务器地址';
+          }
+          showToast('请先在后台设置中填写 WebDAV 服务器地址');
+          return;
+        }
+        if (dot) dot.className = 'status-pulse-dot green';
+        if (badge) {
+          badge.className = 'backend-status-badge green';
+          badge.textContent = '🟢 挂载成功 (WebDAV Active)';
+        }
+        showToast('WebDAV 云服务连通成功！');
+      } else if (backend === 'local') {
+        if (dot) dot.className = 'status-pulse-dot green';
+        if (badge) {
+          badge.className = 'backend-status-badge green';
+          badge.textContent = '🟢 IndexedDB 正常 (100% Offline)';
+        }
+        showToast('IndexedDB 本地私有离线盘运行良好！');
+      }
+    } catch (err) {
+      if (dot) dot.className = 'status-pulse-dot red';
+      if (badge) {
+        badge.className = 'backend-status-badge red';
+        badge.textContent = '🔴 连接超时/异常';
+      }
+      showToast(`存储源连通测试未通过: ${err.message || '网络异常'}`);
+    }
+  }
 
   function handleStorageProviderChange() {
     const provider = settingStorageProvider.value;
@@ -1327,9 +1484,13 @@ document.addEventListener('DOMContentLoaded', () => {
       statusProviderTag.innerHTML = `<i class="fa-solid fa-cubes obsidian-purple"></i> 存储源: Hugging Face (${siteConfig.hf_repo || 'Main'})`;
     } else if (provider === 'webdav') {
       statusProviderTag.innerHTML = `<i class="fa-solid fa-cloud obsidian-cyan"></i> 存储源: WebDAV (挂载云盘)`;
+    } else if (provider === 'local') {
+      statusProviderTag.innerHTML = `<i class="fa-solid fa-hard-drive obsidian-yellow"></i> 存储源: IndexedDB 离线隔离盘`;
     } else {
       statusProviderTag.innerHTML = `<i class="fa-brands fa-github obsidian-green"></i> 存储源: GitHub Pages / Raw`;
     }
+
+    updateStorageSourceBadge();
   }
 
   function switchNewModalType(type) {

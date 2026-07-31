@@ -35,6 +35,13 @@
       </div>
 
       <div class="header-btn-group">
+        <!-- Storage Source Switcher Badge with Green Light Indicator (K-Vault Style) -->
+        <div id="storage-source-badge" class="storage-source-badge" title="点击切换存储源 backend 与连通状态检查">
+          <span class="status-pulse-dot green" id="storage-status-dot"></span>
+          <span id="storage-source-name"><i class="fa-brands fa-github obsidian-green"></i> GitHub Pages / Raw</span>
+          <i class="fa-solid fa-chevron-down" style="font-size:0.7rem; margin-left:0.3rem; opacity:0.7;"></i>
+        </div>
+
         <!-- Refresh Button -->
         <button id="global-refresh-btn" class="btn btn-sm btn-outline" title="刷新目录与网盘数据">
           <i class="fa-solid fa-arrows-rotate"></i> 刷新
@@ -608,6 +615,95 @@
       <div class="modal-footer">
         <a id="prop-download-btn" href="#" target="_blank" class="btn btn-primary btn-sm"><i class="fa-solid fa-download"></i> 立即下载该文件</a>
         <button class="btn btn-outline btn-sm modal-close">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Storage Source Switcher Modal (K-Vault Style Green Light Multi-Backend Switcher) -->
+  <div id="storage-switcher-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 580px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-server obsidian-purple"></i> 多存储源控制台 (K-Vault 动态状态控制引擎)</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">
+          实时连通性检测与存储后端无缝切换。选中的存储源将在上传、索引与直链生成时高亮生效：
+        </p>
+
+        <div class="storage-backend-list">
+          <!-- Backend 1: GitHub -->
+          <div class="storage-backend-card active" data-backend="github" id="card-backend-github">
+            <div class="backend-header">
+              <div class="backend-title">
+                <span class="status-pulse-dot green" id="dot-github"></span>
+                <i class="fa-brands fa-github obsidian-green" style="font-size:1.1rem;"></i>
+                <strong>GitHub Pages / Raw 仓库</strong>
+              </div>
+              <span class="backend-status-badge green" id="badge-github">🟢 运行正常 (Healthy)</span>
+            </div>
+            <p class="backend-desc">原生 GitHub REST API + Raw CDN 动态全量索引。支持文件自动 Commit 提交与存储。</p>
+            <div class="backend-actions">
+              <button class="btn btn-xs btn-primary select-backend-btn" data-backend="github">切换使用此源</button>
+              <button class="btn btn-xs btn-outline test-backend-btn" data-backend="github"><i class="fa-solid fa-plug"></i> 测试连通</button>
+            </div>
+          </div>
+
+          <!-- Backend 2: Hugging Face -->
+          <div class="storage-backend-card" data-backend="huggingface" id="card-backend-huggingface">
+            <div class="backend-header">
+              <div class="backend-title">
+                <span class="status-pulse-dot green" id="dot-huggingface"></span>
+                <i class="fa-solid fa-cubes obsidian-purple" style="font-size:1.1rem;"></i>
+                <strong>Hugging Face Hub 数据集镜像</strong>
+              </div>
+              <span class="backend-status-badge green" id="badge-huggingface">🟢 就绪 (Ready)</span>
+            </div>
+            <p class="backend-desc">挂载 Hugging Face Dataset / Repo。适合超大文件与大语言模型权重镜像存储。</p>
+            <div class="backend-actions">
+              <button class="btn btn-xs btn-outline select-backend-btn" data-backend="huggingface">切换使用此源</button>
+              <button class="btn btn-xs btn-outline test-backend-btn" data-backend="huggingface"><i class="fa-solid fa-plug"></i> 测试连通</button>
+            </div>
+          </div>
+
+          <!-- Backend 3: WebDAV -->
+          <div class="storage-backend-card" data-backend="webdav" id="card-backend-webdav">
+            <div class="backend-header">
+              <div class="backend-title">
+                <span class="status-pulse-dot green" id="dot-webdav"></span>
+                <i class="fa-solid fa-cloud obsidian-cyan" style="font-size:1.1rem;"></i>
+                <strong>WebDAV 云盘挂载 (坚果云 / Nextcloud)</strong>
+              </div>
+              <span class="backend-status-badge green" id="badge-webdav">🟢 就绪 (Ready)</span>
+            </div>
+            <p class="backend-desc">标准 WebDAV 协议。可无缝对接坚果云、Nextcloud、ownCloud 或 NAS 服务器。</p>
+            <div class="backend-actions">
+              <button class="btn btn-xs btn-outline select-backend-btn" data-backend="webdav">切换使用此源</button>
+              <button class="btn btn-xs btn-outline test-backend-btn" data-backend="webdav"><i class="fa-solid fa-plug"></i> 测试连通</button>
+            </div>
+          </div>
+
+          <!-- Backend 4: Local Storage -->
+          <div class="storage-backend-card" data-backend="local" id="card-backend-local">
+            <div class="backend-header">
+              <div class="backend-title">
+                <span class="status-pulse-dot green" id="dot-local"></span>
+                <i class="fa-solid fa-hard-drive obsidian-yellow" style="font-size:1.1rem;"></i>
+                <strong>IndexedDB 本地私有离线盘</strong>
+              </div>
+              <span class="backend-status-badge green" id="badge-local">🟢 本地可用 (100% Offline)</span>
+            </div>
+            <p class="backend-desc">纯浏览器本地 IndexedDB 离线隔离存储。零网络依赖，数据仅保存在本机。</p>
+            <div class="backend-actions">
+              <button class="btn btn-xs btn-outline select-backend-btn" data-backend="local">切换使用此源</button>
+              <button class="btn btn-xs btn-outline test-backend-btn" data-backend="local"><i class="fa-solid fa-plug"></i> 测试连通</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline btn-sm modal-close">关闭</button>
+        <button class="btn btn-primary btn-sm" id="open-config-from-switcher"><i class="fa-solid fa-sliders"></i> 配置各源 Key / 域名</button>
       </div>
     </div>
   </div>
