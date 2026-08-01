@@ -714,6 +714,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (siteConfig.hf_repo) {
       await syncHuggingFaceRepositoryTree();
     }
+    if (siteConfig.webdav_url) {
+      await syncWebDAVRepositoryTree();
+    }
 
     closeAllModals();
     showToast('存储源与后台定制参数已保存并同步渲染生效！');
@@ -1232,6 +1235,90 @@ document.addEventListener('DOMContentLoaded', () => {
     parent.push(fileNode);
   }
 
+  async function syncWebDAVRepositoryTree() {
+    const webdavUrl = siteConfig && siteConfig.webdav_url ? siteConfig.webdav_url.trim() : '';
+    if (!webdavUrl) return false;
+
+    const webdavUser = (siteConfig && siteConfig.webdav_user) || '';
+    const webdavPass = (siteConfig && siteConfig.webdav_pass) || '';
+
+    const webdavRoot = treeData ? treeData.find(n => n.id === 'root_webdav') : null;
+    if (!webdavRoot) return false;
+
+    try {
+      const headers = {
+        'Depth': '1',
+        'Accept': '*/*'
+      };
+      if (webdavUser && webdavPass) {
+        headers['Authorization'] = 'Basic ' + btoa(`${webdavUser}:${webdavPass}`);
+      }
+
+      let res;
+      try {
+        res = await fetch(webdavUrl, { method: 'PROPFIND', headers });
+      } catch (e) {
+        const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(webdavUrl);
+        res = await fetch(proxyUrl, { headers });
+      }
+
+      if (res && res.ok) {
+        const xmlText = await res.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+        const responses = xmlDoc.getElementsByTagNameNS('*', 'response');
+
+        if (responses.length > 0) {
+          const newChildren = [];
+          for (let i = 0; i < responses.length; i++) {
+            const resp = responses[i];
+            const hrefEl = resp.getElementsByTagNameNS('*', 'href')[0];
+            const href = hrefEl ? hrefEl.textContent : '';
+
+            if (!href || href === webdavUrl || href === '/' || href.replace(/\/$/, '') === webdavUrl.replace(/\/$/, '')) continue;
+
+            const name = decodeURIComponent(href.split('/').filter(Boolean).pop() || 'WebDAV 文件');
+            const isDir = href.endsWith('/') || resp.getElementsByTagNameNS('*', 'collection').length > 0;
+
+            if (isDir) {
+              newChildren.push({
+                id: 'webdav_folder_' + Math.random().toString(36).substring(2, 8),
+                type: 'folder',
+                name: name,
+                icon: 'fa-solid fa-folder obsidian-cyan',
+                expanded: true,
+                children: []
+              });
+            } else {
+              const ext = (name.split('.').pop() || 'txt').toLowerCase();
+              const fullUrl = href.startsWith('http') ? href : (webdavUrl.replace(/\/$/, '') + '/' + href.replace(/^\//, ''));
+              newChildren.push({
+                id: 'webdav_file_' + Math.random().toString(36).substring(2, 8),
+                type: 'file',
+                name: name,
+                ext: ext,
+                desc: 'WebDAV 云盘同步文件',
+                size: '已同步',
+                url: fullUrl
+              });
+            }
+          }
+
+          if (newChildren.length > 0) {
+            webdavRoot.children = newChildren;
+            ensureNodeMetadata(treeData);
+            saveTreeToLocal();
+            renderTree();
+            return true;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Sync WebDAV tree failed:', err);
+    }
+    return false;
+  }
+
   function ensureFolderPathInTree(pathParts) {
     let currentChildren = treeData;
     for (let i = 0; i < pathParts.length; i++) {
@@ -1656,9 +1743,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ensure all 4 storage backends appear as top-level root folders
     treeData = ensureMultiBackendRootTree(treeData);
     
-    // Auto-sync remote files directly from GitHub and Hugging Face repositories
+    // Auto-sync remote files directly from GitHub, Hugging Face, and WebDAV
     await syncGitHubRepositoryTree();
     await syncHuggingFaceRepositoryTree();
+    await syncWebDAVRepositoryTree();
 
     ensureNodeMetadata(treeData);
 
