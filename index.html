@@ -655,14 +655,13 @@
               <div class="backend-title">
                 <span class="status-pulse-dot green" id="dot-github"></span>
                 <i class="fa-brands fa-github obsidian-green" style="font-size:1.1rem;"></i>
-                <strong>GitHub Pages / Raw 仓库</strong>
+                <strong>GitHub Pages / Raw 仓库 [云端主库]</strong>
               </div>
-              <span class="backend-status-badge green" id="badge-github">🟢 运行正常 (Healthy)</span>
+              <span class="backend-status-badge green" id="badge-github">🟢 就绪</span>
             </div>
             <p class="backend-desc">原生 GitHub REST API + Raw CDN 动态全量索引。支持文件自动 Commit 提交与存储。</p>
             <div class="backend-actions">
-              <button class="btn btn-xs btn-primary select-backend-btn" data-backend="github">切换使用此源</button>
-              <button class="btn btn-xs btn-outline test-backend-btn" data-backend="github"><i class="fa-solid fa-plug"></i> 测试连通</button>
+              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="github"><i class="fa-solid fa-plug"></i> 真实连通测试</button>
             </div>
           </div>
 
@@ -672,14 +671,13 @@
               <div class="backend-title">
                 <span class="status-pulse-dot green" id="dot-huggingface"></span>
                 <i class="fa-solid fa-cubes obsidian-purple" style="font-size:1.1rem;"></i>
-                <strong>Hugging Face Hub 数据集镜像</strong>
+                <strong>Hugging Face Hub 数据集/模型挂载库</strong>
               </div>
-              <span class="backend-status-badge green" id="badge-huggingface">🟢 就绪 (Ready)</span>
+              <span class="backend-status-badge green" id="badge-huggingface">🟢 就绪</span>
             </div>
-            <p class="backend-desc">挂载 Hugging Face Dataset / Repo。适合超大文件与大语言模型权重镜像存储。</p>
+            <p class="backend-desc">挂载 Hugging Face Dataset / Models 仓库。支持模型权重与数据集文件在线拉取与预览。</p>
             <div class="backend-actions">
-              <button class="btn btn-xs btn-outline select-backend-btn" data-backend="huggingface">切换使用此源</button>
-              <button class="btn btn-xs btn-outline test-backend-btn" data-backend="huggingface"><i class="fa-solid fa-plug"></i> 测试连通</button>
+              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="huggingface"><i class="fa-solid fa-plug"></i> 真实连通测试</button>
             </div>
           </div>
 
@@ -691,12 +689,11 @@
                 <i class="fa-solid fa-cloud obsidian-cyan" style="font-size:1.1rem;"></i>
                 <strong>WebDAV 云盘挂载 (坚果云 / Nextcloud)</strong>
               </div>
-              <span class="backend-status-badge green" id="badge-webdav">🟢 就绪 (Ready)</span>
+              <span class="backend-status-badge green" id="badge-webdav">🟢 就绪</span>
             </div>
-            <p class="backend-desc">标准 WebDAV 协议。可无缝对接坚果云、Nextcloud、ownCloud 或 NAS 服务器。</p>
+            <p class="backend-desc">标准 WebDAV 协议。无缝对接坚果云、Nextcloud、ownCloud 或 NAS 服务器。</p>
             <div class="backend-actions">
-              <button class="btn btn-xs btn-outline select-backend-btn" data-backend="webdav">切换使用此源</button>
-              <button class="btn btn-xs btn-outline test-backend-btn" data-backend="webdav"><i class="fa-solid fa-plug"></i> 测试连通</button>
+              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="webdav"><i class="fa-solid fa-plug"></i> 真实连通测试</button>
             </div>
           </div>
 
@@ -708,12 +705,11 @@
                 <i class="fa-solid fa-hard-drive obsidian-yellow" style="font-size:1.1rem;"></i>
                 <strong>IndexedDB 本地私有离线盘</strong>
               </div>
-              <span class="backend-status-badge green" id="badge-local">🟢 本地可用 (100% Offline)</span>
+              <span class="backend-status-badge green" id="badge-local">🟢 本地正常 (100% Offline)</span>
             </div>
             <p class="backend-desc">纯浏览器本地 IndexedDB 离线隔离存储。零网络依赖，数据仅保存在本机。</p>
             <div class="backend-actions">
-              <button class="btn btn-xs btn-outline select-backend-btn" data-backend="local">切换使用此源</button>
-              <button class="btn btn-xs btn-outline test-backend-btn" data-backend="local"><i class="fa-solid fa-plug"></i> 测试连通</button>
+              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="local"><i class="fa-solid fa-plug"></i> 真实连通测试</button>
             </div>
           </div>
         </div>

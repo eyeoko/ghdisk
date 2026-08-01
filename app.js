@@ -686,7 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
     adminSettingsModal.style.display = 'flex';
   }
 
-  function saveAdminSettings() {
+  async function saveAdminSettings() {
     siteConfig.title = settingSiteTitle.value.trim() || siteConfig.title;
     siteConfig.subtitle = settingSiteSubtitle.value.trim() || siteConfig.subtitle;
     siteConfig.notice = settingSiteNotice.value.trim() || siteConfig.notice;
@@ -710,8 +710,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     localStorage.setItem('ys_site_config', JSON.stringify(siteConfig));
     applySiteConfig();
+
+    if (siteConfig.hf_repo) {
+      await syncHuggingFaceRepositoryTree();
+    }
+
     closeAllModals();
-    showToast('存储源与后台定制参数已保存生效！');
+    showToast('存储源与后台定制参数已保存并同步渲染生效！');
   }
 
   function setupDropzoneEvents() {
@@ -1141,6 +1146,92 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function syncHuggingFaceRepositoryTree() {
+    const hfRepo = siteConfig && siteConfig.hf_repo ? siteConfig.hf_repo.trim() : '';
+    if (!hfRepo) return false;
+
+    const hfBranch = (siteConfig && siteConfig.hf_branch) || 'main';
+    const hfToken = (siteConfig && siteConfig.hf_token) || '';
+
+    const hfRoot = treeData ? treeData.find(n => n.id === 'root_huggingface') : null;
+    if (!hfRoot) return false;
+
+    try {
+      const headers = { 'Accept': 'application/json' };
+      if (hfToken) headers['Authorization'] = `Bearer ${hfToken}`;
+
+      let isDataset = true;
+      let apiUrl = `https://huggingface.co/api/datasets/${hfRepo}/tree/${hfBranch}?recursive=true`;
+
+      let res = await fetch(apiUrl, { headers });
+      if (!res.ok) {
+        isDataset = false;
+        apiUrl = `https://huggingface.co/api/models/${hfRepo}/tree/${hfBranch}?recursive=true`;
+        res = await fetch(apiUrl, { headers });
+      }
+
+      if (res.ok) {
+        const items = await res.json();
+        if (Array.isArray(items) && items.length > 0) {
+          const newChildren = [];
+          items.forEach(item => {
+            if (item.type === 'file') {
+              const pathParts = item.path.split('/');
+              const filename = pathParts.pop();
+              const ext = (filename.split('.').pop() || 'txt').toLowerCase();
+
+              const rawUrl = isDataset
+                ? `https://huggingface.co/datasets/${hfRepo}/raw/${hfBranch}/${item.path}`
+                : `https://huggingface.co/${hfRepo}/raw/${hfBranch}/${item.path}`;
+
+              insertFileIntoTreeByPathParts(newChildren, pathParts, {
+                id: 'hf_' + Math.random().toString(36).substring(2, 9),
+                type: 'file',
+                name: filename,
+                ext: ext,
+                desc: `Hugging Face 仓库同步 (${hfRepo})`,
+                size: item.size ? (item.size > 1024 * 1024 ? (item.size / (1024 * 1024)).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB') : '资源文件',
+                url: rawUrl
+              });
+            }
+          });
+
+          if (newChildren.length > 0) {
+            hfRoot.children = newChildren;
+            ensureNodeMetadata(treeData);
+            saveTreeToLocal();
+            renderTree();
+            return true;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Syncing Hugging Face repository tree failed:', err);
+    }
+    return false;
+  }
+
+  function insertFileIntoTreeByPathParts(currentChildren, pathParts, fileNode) {
+    let parent = currentChildren;
+    for (let part of pathParts) {
+      if (!part) continue;
+      let folder = parent.find(c => c.type === 'folder' && c.name === part);
+      if (!folder) {
+        folder = {
+          id: 'hf_folder_' + Math.random().toString(36).substring(2, 8),
+          type: 'folder',
+          name: part,
+          icon: 'fa-solid fa-folder',
+          expanded: true,
+          children: []
+        };
+        parent.push(folder);
+      }
+      parent = folder.children;
+    }
+    parent.push(fileNode);
+  }
+
   function ensureFolderPathInTree(pathParts) {
     let currentChildren = treeData;
     for (let i = 0; i < pathParts.length; i++) {
@@ -1564,6 +1655,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Ensure all 4 storage backends appear as top-level root folders
     treeData = ensureMultiBackendRootTree(treeData);
+    
+    // Auto-sync remote files directly from GitHub and Hugging Face repositories
+    await syncGitHubRepositoryTree();
+    await syncHuggingFaceRepositoryTree();
+
     ensureNodeMetadata(treeData);
 
     recycleBin = savedRecycleBin ? JSON.parse(savedRecycleBin) : (defaultData ? defaultData.recycleBin || [] : []);
