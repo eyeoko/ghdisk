@@ -2951,11 +2951,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function exportConfig() {
+  async function hydrateTreeWithIDBContent(nodes) {
+    if (!Array.isArray(nodes)) return;
+    for (let node of nodes) {
+      if (node.type === 'file' && node.id) {
+        try {
+          const idbData = await getFileFromIDB(node.id);
+          if (idbData && idbData.content !== undefined) {
+            node.content = idbData.content;
+          }
+          if (idbData && idbData.dataUrl) {
+            node.url = idbData.dataUrl;
+          }
+        } catch (e) {
+          console.warn('Hydrating IDB content for export failed:', e);
+        }
+      }
+      if (node.children) {
+        await hydrateTreeWithIDBContent(node.children);
+      }
+    }
+  }
+
+  async function exportConfig() {
     if (!treeData) return;
+
+    showToast('正在提取离线缓存与全量文件数据以打包导出...');
+
+    const treeClone = JSON.parse(JSON.stringify(treeData));
+    await hydrateTreeWithIDBContent(treeClone);
+
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 5).replace(':', '');
+
     const exportObj = {
+      schemaVersion: '2.0',
+      exportedAt: now.toLocaleString(),
+      generator: 'Obsidian Multi-Backend Netdisk Engine',
       site: siteConfig,
-      tree: treeData,
+      tree: treeClone,
       recycleBin: recycleBin
     };
 
@@ -2963,10 +2998,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'data.json';
+    a.download = `ghdisk_backup_${dateStr}_${timeStr}.json`;
     a.click();
 
-    showToast('数据与设置已成功导出为 data.json！');
+    showToast(`网盘全量配置与数据已打包导出为 ghdisk_backup_${dateStr}.json！`);
   }
 
   // Config Management & Import Logic
@@ -2991,7 +3026,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.target.files && e.target.files[0]) {
         const file = e.target.files[0];
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
           try {
             const importedData = JSON.parse(evt.target.result);
             if (importedData.site) {
@@ -3001,23 +3036,42 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (importedData.tree && Array.isArray(importedData.tree)) {
               treeData = importedData.tree;
+              treeData = ensureMultiBackendRootTree(treeData);
               ensureNodeMetadata(treeData);
+              
+              await saveImportedFilesToIDB(treeData);
+
               saveTreeToLocal();
               renderTree();
             }
             if (importedData.recycleBin && Array.isArray(importedData.recycleBin)) {
               recycleBin = importedData.recycleBin;
               localStorage.setItem('ys_recycle_bin', JSON.stringify(recycleBin));
-              updateRecycleCountBadge();
+              updateRecycleBadge();
             }
-            showToast(`网盘配置与目录树已成功从文件「${file.name}」全量导入生效！`);
+            showToast(`网盘配置与全量目录数据已成功从文件「${file.name}」导入生效！`);
           } catch (err) {
-            alert('导入失败: 无法解析 JSON 数据格式！请确认选择的是正确的 data.json 配置文件。');
+            alert('导入失败: 无法解析 JSON 数据格式！请确认选择的是正确的配置文件。');
           }
         };
         reader.readAsText(file);
       }
     });
+  }
+
+  async function saveImportedFilesToIDB(nodes) {
+    if (!Array.isArray(nodes)) return;
+    for (let node of nodes) {
+      if (node.type === 'file' && node.id && (node.content !== undefined || node.url)) {
+        await saveFileToIDB(node.id, {
+          content: node.content || '',
+          dataUrl: node.url || ''
+        });
+      }
+      if (node.children) {
+        await saveImportedFilesToIDB(node.children);
+      }
+    }
   }
 
   function handleSearch(e) {
