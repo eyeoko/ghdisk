@@ -885,6 +885,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const now = new Date().toLocaleString();
     const totalFiles = selectedUploadFiles.length;
 
+    const targetFolderNode = targetFolderId === 'root' ? null : findNodeById(treeData, targetFolderId);
+    const targetProvider = targetFolderNode ? getStorageProviderForNode(targetFolderNode) : '';
+    const uploadToWebDAV = targetProvider === 'webdav';
+    let webdavFolderUrl = '';
+    if (uploadToWebDAV) {
+      webdavFolderUrl = buildWebDAVFolderUrl(targetFolderNode || (treeData.find(n => n.id === 'root_webdav') || null));
+    }
+
     showToast(`正在解析上传 ${totalFiles} 个文件，请稍候...`);
 
     let count = 0;
@@ -919,11 +927,33 @@ document.addEventListener('DOMContentLoaded', () => {
       // GitHub Direct API Push
       let githubUrl = null;
       const activeToken = getActiveGitHubToken();
-      if (siteConfig.storage_provider === 'github' && activeToken) {
+      if (!uploadToWebDAV && siteConfig.storage_provider === 'github' && activeToken) {
         githubUrl = await uploadFileToGitHub(file.name, base64Only);
       }
 
-      const fileUrl = githubUrl || (isText ? `files/${file.name}` : dataUrl);
+      // WebDAV Direct PUT
+      let webdavUrl = null;
+      if (uploadToWebDAV && webdavFolderUrl) {
+        const putTarget = webdavFolderUrl.replace(/\/$/, '') + '/' + encodeURIComponent(file.name);
+        let putRes = null;
+        try {
+          putRes = await webdavFetch(putTarget, {
+            method: 'PUT',
+            headers: getWebDAVHeaders({
+              'Content-Type': file.type || (isText ? 'text/plain;charset=utf-8' : 'application/octet-stream'),
+              'Accept': '*/*'
+            }),
+            body: isText ? textContent : file
+          });
+        } catch (err) {
+          console.warn('WebDAV PUT upload failed:', err);
+        }
+        if (putRes && (putRes.ok || putRes.status === 201 || putRes.status === 204)) {
+          webdavUrl = putTarget;
+        }
+      }
+
+      const fileUrl = webdavUrl || githubUrl || (isText ? `files/${file.name}` : dataUrl);
 
       if (uploadMode === 'folder') {
         const relPath = file.webkitRelativePath || file.name;
@@ -942,6 +972,12 @@ document.addEventListener('DOMContentLoaded', () => {
           url: fileUrl,
           content: textContent
         };
+        if (webdavUrl) {
+          const parentPath = targetFolderNode && targetFolderNode.id !== 'root_webdav' && targetFolderNode.serverPath
+            ? targetFolderNode.serverPath.replace(/\/$/, '')
+            : '';
+          newFileNode.serverPath = (parentPath ? parentPath + '/' : '') + file.name;
+        }
 
         if (targetFolderId === 'root') {
           treeData.push(newFileNode);
@@ -1238,86 +1274,158 @@ document.addEventListener('DOMContentLoaded', () => {
     parent.push(fileNode);
   }
 
-  async function syncWebDAVRepositoryTree() {
-    const webdavUrl = siteConfig && siteConfig.webdav_url ? siteConfig.webdav_url.trim() : '';
-    if (!webdavUrl) return false;
+  function getWebDAVConfig() {
+    return {
+      url: (siteConfig && siteConfig.webdav_url ? siteConfig.webdav_url.trim() : ''),
+      user: (siteConfig && siteConfig.webdav_user) || '',
+      pass: (siteConfig && siteConfig.webdav_pass) || ''
+    };
+  }
 
-    const webdavUser = (siteConfig && siteConfig.webdav_user) || '';
-    const webdavPass = (siteConfig && siteConfig.webdav_pass) || '';
+  function getWebDAVHeaders(extra) {
+    const cfg = getWebDAVConfig();
+    const headers = Object.assign({}, extra || {});
+    if (cfg.user && cfg.pass) {
+      headers['Authorization'] = 'Basic ' + btoa(`${cfg.user}:${cfg.pass}`);
+    }
+    return headers;
+  }
+
+  async function webdavFetch(url, options) {
+    const opts = options || {};
+    try {
+      return await fetch(url, opts);
+    } catch (err) {
+      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+      return await fetch(proxyUrl, opts);
+    }
+  }
+
+  function getWebDAVFolderServerPath(folderNode) {
+    const parts = [];
+    const visit = (nodes, path) => {
+      for (const n of nodes || []) {
+        const nextPath = n.id === 'root_webdav' ? path : path.concat([n.name]);
+        if (n === folderNode) {
+          parts.push.apply(parts, nextPath);
+          return true;
+        }
+        if (n.type === 'folder' && n.children) {
+          if (visit(n.children, nextPath)) return true;
+        }
+      }
+      return false;
+    };
+    const webdavRoot = (treeData || []).find(n => n.id === 'root_webdav');
+    if (webdavRoot) visit([webdavRoot], []);
+    return parts;
+  }
+
+  function buildWebDAVFolderUrl(folderNode) {
+    const cfg = getWebDAVConfig();
+    if (!cfg.url) return '';
+    const pathParts = getWebDAVFolderServerPath(folderNode);
+    if (pathParts.length === 0) return cfg.url.replace(/\/$/, '') + '/';
+    return cfg.url.replace(/\/$/, '') + '/' + pathParts.map(p => encodeURIComponent(p)).join('/');
+  }
+
+  async function fetchWebDAVText(url) {
+    const res = await webdavFetch(url, { headers: getWebDAVHeaders({ 'Accept': '*/*' }) });
+    if (res && res.ok) return await res.text();
+    return null;
+  }
+
+  async function webdavPropfind(url) {
+    const headers = getWebDAVHeaders({ 'Depth': '1', 'Accept': '*/*' });
+    let res;
+    try {
+      res = await fetch(url, { method: 'PROPFIND', headers });
+    } catch (e) {
+      const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(url);
+      res = await fetch(proxyUrl, { headers });
+    }
+    if (!res || !res.ok) return null;
+    const xmlText = await res.text();
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+    return xmlDoc.getElementsByTagNameNS('*', 'response');
+  }
+
+  function parseWebDAVChildren(responses, webdavRootUrl, parentServerPath, selfServerPath) {
+    const children = [];
+    const baseNoSlash = webdavRootUrl.replace(/\/$/, '');
+    const selfNorm = ('/' + (selfServerPath || '').replace(/\/$/, '')).replace(/\/+/g, '/');
+    for (let i = 0; i < responses.length; i++) {
+      const resp = responses[i];
+      const hrefEl = resp.getElementsByTagNameNS('*', 'href')[0];
+      const href = hrefEl ? hrefEl.textContent : '';
+      const hrefNorm = href.replace(/\/$/, '');
+      if (!href || href === '/' || hrefNorm === baseNoSlash) continue;
+      if (selfNorm !== '/' && hrefNorm === selfNorm) continue;
+
+      const name = decodeURIComponent(href.split('/').filter(Boolean).pop() || 'WebDAV 文件');
+      const isDir = href.endsWith('/') || resp.getElementsByTagNameNS('*', 'collection').length > 0;
+      const serverPath = (parentServerPath ? parentServerPath + '/' : '') + (isDir ? name + '/' : name);
+      const fullUrl = href.startsWith('http') ? href : (baseNoSlash + '/' + href.replace(/^\//, ''));
+
+      if (isDir) {
+        children.push({
+          id: 'webdav_folder_' + Math.random().toString(36).substring(2, 8),
+          type: 'folder',
+          name: name,
+          icon: 'fa-solid fa-folder obsidian-cyan',
+          expanded: true,
+          serverPath: serverPath,
+          loaded: false,
+          children: []
+        });
+      } else {
+        const ext = (name.split('.').pop() || 'txt').toLowerCase();
+        children.push({
+          id: 'webdav_file_' + Math.random().toString(36).substring(2, 8),
+          type: 'file',
+          name: name,
+          ext: ext,
+          desc: 'WebDAV 云盘同步文件',
+          size: '已同步',
+          url: fullUrl,
+          serverPath: serverPath
+        });
+      }
+    }
+    return children;
+  }
+
+  async function loadWebDAVDir(folderNode) {
+    const cfg = getWebDAVConfig();
+    if (!cfg.url) return false;
+    const dirUrl = buildWebDAVFolderUrl(folderNode);
+    const responses = await webdavPropfind(dirUrl);
+    if (!responses || responses.length === 0) return false;
+
+    const parentServerPath = folderNode.id === 'root_webdav' ? '' : (folderNode.serverPath ? folderNode.serverPath.replace(/\/$/, '') : '');
+    const children = parseWebDAVChildren(responses, cfg.url, parentServerPath, folderNode.serverPath || '');
+
+    folderNode.children = children;
+    folderNode.loaded = true;
+    ensureNodeMetadata(treeData);
+    saveTreeToLocal();
+    renderTree();
+    return true;
+  }
+
+  async function syncWebDAVRepositoryTree() {
+    const cfg = getWebDAVConfig();
+    if (!cfg.url) return false;
 
     const webdavRoot = treeData ? treeData.find(n => n.id === 'root_webdav') : null;
     if (!webdavRoot) return false;
 
-    try {
-      const headers = {
-        'Depth': '1',
-        'Accept': '*/*'
-      };
-      if (webdavUser && webdavPass) {
-        headers['Authorization'] = 'Basic ' + btoa(`${webdavUser}:${webdavPass}`);
-      }
-
-      let res;
-      try {
-        res = await fetch(webdavUrl, { method: 'PROPFIND', headers });
-      } catch (e) {
-        const proxyUrl = `https://corsproxy.io/?` + encodeURIComponent(webdavUrl);
-        res = await fetch(proxyUrl, { headers });
-      }
-
-      if (res && res.ok) {
-        const xmlText = await res.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-        const responses = xmlDoc.getElementsByTagNameNS('*', 'response');
-
-        if (responses.length > 0) {
-          const newChildren = [];
-          for (let i = 0; i < responses.length; i++) {
-            const resp = responses[i];
-            const hrefEl = resp.getElementsByTagNameNS('*', 'href')[0];
-            const href = hrefEl ? hrefEl.textContent : '';
-
-            if (!href || href === webdavUrl || href === '/' || href.replace(/\/$/, '') === webdavUrl.replace(/\/$/, '')) continue;
-
-            const name = decodeURIComponent(href.split('/').filter(Boolean).pop() || 'WebDAV 文件');
-            const isDir = href.endsWith('/') || resp.getElementsByTagNameNS('*', 'collection').length > 0;
-
-            if (isDir) {
-              newChildren.push({
-                id: 'webdav_folder_' + Math.random().toString(36).substring(2, 8),
-                type: 'folder',
-                name: name,
-                icon: 'fa-solid fa-folder obsidian-cyan',
-                expanded: true,
-                children: []
-              });
-            } else {
-              const ext = (name.split('.').pop() || 'txt').toLowerCase();
-              const fullUrl = href.startsWith('http') ? href : (webdavUrl.replace(/\/$/, '') + '/' + href.replace(/^\//, ''));
-              newChildren.push({
-                id: 'webdav_file_' + Math.random().toString(36).substring(2, 8),
-                type: 'file',
-                name: name,
-                ext: ext,
-                desc: 'WebDAV 云盘同步文件',
-                size: '已同步',
-                url: fullUrl
-              });
-            }
-          }
-
-          if (newChildren.length > 0) {
-            webdavRoot.children = newChildren;
-            ensureNodeMetadata(treeData);
-            saveTreeToLocal();
-            renderTree();
-            return true;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Sync WebDAV tree failed:', err);
+    const didLoad = await loadWebDAVDir(webdavRoot);
+    if (didLoad) {
+      webdavRoot.expanded = true;
+      renderTree();
+      return true;
     }
     return false;
   }
@@ -1690,7 +1798,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let content = tab.content || fileNode.content;
     if (content === undefined && fileNode.url && !fileNode.url.startsWith('data:')) {
       try {
-        const res = await fetch(encodeURI(fileNode.url));
+        const nodeProvider = getStorageProviderForNode(fileNode);
+        let res;
+        if (nodeProvider === 'webdav') {
+          res = await webdavFetch(encodeURI(fileNode.url), { headers: getWebDAVHeaders({ 'Accept': '*/*' }) });
+        } else {
+          res = await fetch(encodeURI(fileNode.url));
+        }
         if (res.ok) {
           content = await res.text();
           tab.content = content;
@@ -1809,11 +1923,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function handleCreateFileOrLink() {
+  async function handleCreateFileOrLink() {
     if (!isAdminUnlocked) return alert('游客只读模式下无法新建资源，请先解封管理员模式！');
     const folderId = newFileFolderSelect.value;
     const desc = newFileDescInput.value.trim();
     const now = new Date().toLocaleString();
+
+    const targetFolderNode = folderId === 'root' ? null : findNodeById(treeData, folderId);
+    const targetProvider = targetFolderNode ? getStorageProviderForNode(targetFolderNode) : '';
+    const isWebDAVTarget = targetProvider === 'webdav';
+    const webdavFolderUrl = isWebDAVTarget ? buildWebDAVFolderUrl(targetFolderNode || (treeData.find(n => n.id === 'root_webdav') || null)) : '';
 
     if (newModeType === 'link') {
       const title = newLinkTitleInput.value.trim();
@@ -1857,6 +1976,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const fileName = title.endsWith('.' + ext) ? title : `${title}.${ext}`;
 
+      let webdavCreated = false;
+      let webdavFileUrl = '';
+      if (isWebDAVTarget && webdavFolderUrl) {
+        const putTarget = webdavFolderUrl.replace(/\/$/, '') + '/' + encodeURIComponent(fileName);
+        const content = `# ${fileName}\n# 创建时间: ${now}\n\n`;
+        try {
+          const res = await webdavFetch(putTarget, {
+            method: 'PUT',
+            headers: getWebDAVHeaders({ 'Content-Type': 'text/plain;charset=utf-8', 'Accept': '*/*' }),
+            body: content
+          });
+          if (res && (res.ok || res.status === 201 || res.status === 204)) {
+            webdavCreated = true;
+            webdavFileUrl = putTarget;
+          } else {
+            alert(`WebDAV 文件创建失败${res ? ' (HTTP ' + res.status + ')' : '（网络受限）'}，请检查后台 WebDAV 配置。`);
+            return;
+          }
+        } catch (err) {
+          console.warn('WebDAV PUT create failed:', err);
+          alert('WebDAV 文件创建失败（网络受限），请检查后台 WebDAV 配置。');
+          return;
+        }
+      }
+
       const newFile = {
         id: 'file_' + Date.now(),
         type: 'file',
@@ -1866,9 +2010,13 @@ document.addEventListener('DOMContentLoaded', () => {
         createdAt: now,
         updatedAt: now,
         size: '0 Bytes',
-        url: `files/${fileName}`,
+        url: webdavFileUrl || `files/${fileName}`,
         content: `# ${fileName}\n# 创建时间: ${now}\n\n`
       };
+      if (webdavCreated) {
+        const parentPath = targetFolderNode && targetFolderNode.serverPath ? targetFolderNode.serverPath.replace(/\/$/, '') : '';
+        newFile.serverPath = (parentPath ? parentPath + '/' : '') + fileName;
+      }
 
       if (folderId === 'root') {
         treeData.push(newFile);
@@ -1886,7 +2034,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderTree();
       openFileInEditor(newFile);
       closeAllModals();
-      showToast(`文件「${fileName}」创建成功！`);
+      showToast(`文件「${fileName}」创建成功！${webdavCreated ? '（已写入 WebDAV 云盘）' : ''}`);
     }
   }
 
@@ -2231,11 +2379,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      folderItem.addEventListener('click', (e) => {
+      folderItem.addEventListener('click', async (e) => {
         if (e.target.classList.contains('tree-checkbox') || e.target.closest('.tree-node-actions')) return;
         node.expanded = !node.expanded;
         folderItem.querySelector('.tree-chevron').classList.toggle('expanded');
         childrenContainer.classList.toggle('expanded');
+        if (node.expanded && getStorageProviderForNode(node) === 'webdav' && !node.loaded) {
+          loadWebDAVDir(node);
+        }
       });
 
       const addSubfolderBtn = folderItem.querySelector('.add-subfolder-btn');
@@ -2497,6 +2648,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 3. Commit & push directly to GitHub Repository if the file belongs to the GitHub backend and API token is active
     let githubUploaded = false;
+    let webdavUploaded = false;
     const nodeProvider = getStorageProviderForNode(fileNode);
     const activeToken = getActiveGitHubToken();
 
@@ -2524,10 +2676,49 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // 4. Write back to WebDAV server via PUT if the file belongs to the WebDAV backend
+    if (nodeProvider === 'webdav') {
+      saveFileBtn.disabled = true;
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在写入 WebDAV...';
+
+      let targetUrl = fileNode.url;
+      if (!targetUrl || targetUrl.startsWith('data:')) {
+        const folderServerPath = fileNode.serverPath ? fileNode.serverPath.replace(/\/[^/]+$/, '') : '';
+        const cfg = getWebDAVConfig();
+        targetUrl = (cfg.url.replace(/\/$/, '') + '/' + (folderServerPath ? folderServerPath + '/' : '') + encodeURIComponent(fileNode.name));
+      }
+
+      let putRes = null;
+      try {
+        putRes = await webdavFetch(targetUrl, {
+          method: 'PUT',
+          headers: getWebDAVHeaders({ 'Content-Type': 'text/plain;charset=utf-8', 'Accept': '*/*' }),
+          body: newContent
+        });
+      } catch (err) {
+        console.warn('WebDAV PUT failed:', err);
+      }
+
+      saveFileBtn.disabled = false;
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 保存文件';
+
+      if (putRes && (putRes.ok || putRes.status === 201 || putRes.status === 204)) {
+        fileNode.url = targetUrl;
+        fileNode.content = newContent;
+        webdavUploaded = true;
+      } else {
+        setDirtyState(false);
+        showToast(`「${fileNode.name}」本地已保存，但 WebDAV 写入失败${putRes ? ' (HTTP ' + putRes.status + ')' : '（网络受限）'}，请在后台检查 WebDAV 配置。`);
+        return;
+      }
+    }
+
     setDirtyState(false);
 
     if (githubUploaded) {
       showToast(`「${fileNode.name}」已保存并实时 Commit 提交至 GitHub 仓库！`);
+    } else if (webdavUploaded) {
+      showToast(`「${fileNode.name}」已保存并实时写入 WebDAV 云盘！`);
     } else {
       showToast(`「${fileNode.name}」已成功保存！`);
     }
@@ -2634,12 +2825,41 @@ document.addEventListener('DOMContentLoaded', () => {
     newFolderModal.style.display = 'flex';
   }
 
-  function handleCreateFolder() {
+  async function handleCreateFolder() {
     if (!isAdminUnlocked) return;
     const name = newFolderNameInput.value.trim();
     if (!name) return alert('请输入目录名称！');
     const parentId = parentFolderSelect.value;
     const now = new Date().toLocaleString();
+
+    const parentNode = parentId === 'root' ? null : findNodeById(treeData, parentId);
+    const parentProvider = parentNode ? getStorageProviderForNode(parentNode) : '';
+    let newFolderServerPath = '';
+    let mkcolOk = true;
+
+    if (parentProvider === 'webdav') {
+      const baseFolderUrl = buildWebDAVFolderUrl(parentNode || (treeData.find(n => n.id === 'root_webdav') || null));
+      const mkcolUrl = baseFolderUrl.replace(/\/$/, '') + '/' + encodeURIComponent(name);
+      try {
+        const res = await webdavFetch(mkcolUrl, {
+          method: 'MKCOL',
+          headers: getWebDAVHeaders({ 'Accept': '*/*' })
+        });
+        if (res && (res.ok || res.status === 201 || res.status === 405)) {
+          const parentPath = parentNode && parentNode.serverPath ? parentNode.serverPath.replace(/\/$/, '') : '';
+          newFolderServerPath = (parentPath ? parentPath + '/' : '') + name + '/';
+        } else {
+          mkcolOk = false;
+          alert(`WebDAV 目录创建失败${res ? ' (HTTP ' + res.status + ')' : '（网络受限）'}，请检查后台 WebDAV 配置。`);
+          return;
+        }
+      } catch (err) {
+        console.warn('WebDAV MKCOL failed:', err);
+        mkcolOk = false;
+        alert('WebDAV 目录创建失败（网络受限），请检查后台 WebDAV 配置。');
+        return;
+      }
+    }
 
     const newFolder = {
       id: 'folder_' + Date.now(),
@@ -2651,6 +2871,10 @@ document.addEventListener('DOMContentLoaded', () => {
       updatedAt: now,
       children: []
     };
+    if (parentProvider === 'webdav') {
+      newFolder.serverPath = newFolderServerPath;
+      newFolder.loaded = true;
+    }
 
     if (parentId === 'root') {
       treeData.push(newFolder);
@@ -2667,7 +2891,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveTreeToLocal();
     renderTree();
     closeAllModals();
-    showToast(`目录「${name}」创建成功！`);
+    showToast(`目录「${name}」创建成功！${mkcolOk && parentProvider === 'webdav' ? '（已写入 WebDAV 云盘）' : ''}`);
   }
 
   function openNewFileModal() {
