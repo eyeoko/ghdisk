@@ -440,68 +440,164 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dot) dot.className = 'status-pulse-dot yellow';
     if (badge) {
       badge.className = 'backend-status-badge yellow';
-      badge.textContent = '🟡 正在测试连通性...';
+      badge.textContent = '🟡 正在进行真实连通性测试...';
     }
 
     try {
       if (backend === 'github') {
         const { owner, repo } = getRepoOwnerAndName();
-        const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+        if (!owner || !repo || owner === 'your-username') {
+          if (dot) dot.className = 'status-pulse-dot red';
+          if (badge) {
+            badge.className = 'backend-status-badge red';
+            badge.textContent = '🔴 未配置 GitHub 仓库全名';
+          }
+          showToast('请先在后台设置中填入有效的 GitHub 仓库地址！');
+          return;
+        }
+
+        const token = getActiveGitHubToken();
+        const headers = { 'Accept': 'application/vnd.github+json' };
+        if (token) headers['Authorization'] = `token ${token}`;
+
+        const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+        if (res.ok) {
+          const repoInfo = await res.json();
+          if (dot) dot.className = 'status-pulse-dot green';
+          if (badge) {
+            badge.className = 'backend-status-badge green';
+            badge.textContent = `🟢 真实连通成功 (${repoInfo.private ? '私有库' : '公开库'})`;
+          }
+          showToast(`GitHub 仓库「${owner}/${repo}」真实连通测试通过！`);
+        } else if (res.status === 404) {
+          if (dot) dot.className = 'status-pulse-dot red';
+          if (badge) {
+            badge.className = 'backend-status-badge red';
+            badge.textContent = '🔴 仓库不存在或私有库未填 PAT Token';
+          }
+          showToast('GitHub 仓库未找到！若为私有库，请在后台填入 PAT Token。');
+        } else if (res.status === 401) {
+          if (dot) dot.className = 'status-pulse-dot red';
+          if (badge) {
+            badge.className = 'backend-status-badge red';
+            badge.textContent = '🔴 Token 无效或权未授权';
+          }
+          showToast('GitHub PAT Token 无效，请检查填入的访问令牌！');
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+      } else if (backend === 'huggingface') {
+        const repo = (siteConfig && siteConfig.hf_repo) || '';
+        if (!repo) {
+          if (dot) dot.className = 'status-pulse-dot red';
+          if (badge) {
+            badge.className = 'backend-status-badge red';
+            badge.textContent = '🔴 未填写 HF 仓库名';
+          }
+          showToast('请先在后台设置中填写 Hugging Face 仓库名！');
+          return;
+        }
+
+        const token = siteConfig && siteConfig.hf_token;
+        const headers = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        let res = await fetch(`https://huggingface.co/api/datasets/${repo}`, { headers });
+        if (!res.ok) {
+          res = await fetch(`https://huggingface.co/api/models/${repo}`, { headers });
+        }
+
         if (res.ok) {
           if (dot) dot.className = 'status-pulse-dot green';
           if (badge) {
             badge.className = 'backend-status-badge green';
-            badge.textContent = '🟢 连通良好 (100% Online)';
+            badge.textContent = '🟢 HF 仓库真实连通成功';
           }
-          showToast('GitHub API 连通性测试成功！');
-        } else {
-          throw new Error(`HTTP ${res.status}`);
-        }
-      } else if (backend === 'huggingface') {
-        const repo = (siteConfig && siteConfig.hf_repo) || 'datasets';
-        const res = await fetch(`https://huggingface.co/api/datasets/${repo}`);
-        if (res.ok || res.status === 401 || res.status === 404) {
-          if (dot) dot.className = 'status-pulse-dot green';
+          showToast(`Hugging Face 仓库「${repo}」真实连通测试成功！`);
+        } else if (res.status === 401 || res.status === 403) {
+          if (dot) dot.className = 'status-pulse-dot red';
           if (badge) {
-            badge.className = 'backend-status-badge green';
-            badge.textContent = '🟢 API 通畅 (Ready)';
+            badge.className = 'backend-status-badge red';
+            badge.textContent = '🔴 鉴权失败: Token 无效或无权访问私有仓';
           }
-          showToast('Hugging Face Hub 连通性测试成功！');
+          showToast('Hugging Face 鉴权失败，请检查填入的 Token！');
         } else {
-          throw new Error(`HTTP ${res.status}`);
+          if (dot) dot.className = 'status-pulse-dot red';
+          if (badge) {
+            badge.className = 'backend-status-badge red';
+            badge.textContent = `🔴 仓库不存在 (HTTP ${res.status})`;
+          }
+          showToast('Hugging Face 仓库不存在，请检查用户名与仓库名！');
         }
+
       } else if (backend === 'webdav') {
         const url = siteConfig && siteConfig.webdav_url;
         if (!url) {
-          if (dot) dot.className = 'status-pulse-dot yellow';
+          if (dot) dot.className = 'status-pulse-dot red';
           if (badge) {
-            badge.className = 'backend-status-badge yellow';
-            badge.textContent = '🟡 待填写服务器地址';
+            badge.className = 'backend-status-badge red';
+            badge.textContent = '🔴 未配置 WebDAV URL';
           }
           showToast('请先在后台设置中填写 WebDAV 服务器地址');
           return;
         }
-        if (dot) dot.className = 'status-pulse-dot green';
-        if (badge) {
-          badge.className = 'backend-status-badge green';
-          badge.textContent = '🟢 挂载成功 (WebDAV Active)';
+
+        try {
+          const headers = {};
+          if (siteConfig.webdav_user && siteConfig.webdav_pass) {
+            headers['Authorization'] = 'Basic ' + btoa(`${siteConfig.webdav_user}:${siteConfig.webdav_pass}`);
+          }
+          const res = await fetch(url, { method: 'HEAD', headers });
+          if (res.ok || res.status === 207) {
+            if (dot) dot.className = 'status-pulse-dot green';
+            if (badge) {
+              badge.className = 'backend-status-badge green';
+              badge.textContent = '🟢 WebDAV 挂载正常';
+            }
+            showToast('WebDAV 云服务连通成功！');
+          } else if (res.status === 401) {
+            if (dot) dot.className = 'status-pulse-dot red';
+            if (badge) {
+              badge.className = 'backend-status-badge red';
+              badge.textContent = '🔴 鉴权失败: WebDAV 账号或应用密码错误';
+            }
+            showToast('WebDAV 账号或应用密码错误！');
+          } else {
+            throw new Error(`HTTP ${res.status}`);
+          }
+        } catch (corsErr) {
+          if (dot) dot.className = 'status-pulse-dot yellow';
+          if (badge) {
+            badge.className = 'backend-status-badge yellow';
+            badge.textContent = '🟡 已配置 (受浏览器 CORS 规则限制)';
+          }
+          showToast('WebDAV 服务器已配置 (受浏览器 CORS 跨域限制)');
         }
-        showToast('WebDAV 云服务连通成功！');
+
       } else if (backend === 'local') {
-        if (dot) dot.className = 'status-pulse-dot green';
-        if (badge) {
-          badge.className = 'backend-status-badge green';
-          badge.textContent = '🟢 IndexedDB 正常 (100% Offline)';
+        if (window.indexedDB && dbInstance) {
+          if (dot) dot.className = 'status-pulse-dot green';
+          if (badge) {
+            badge.className = 'backend-status-badge green';
+            badge.textContent = '🟢 IndexedDB 离线隔离盘 正常';
+          }
+          showToast('IndexedDB 本地私有离线盘运行正常！');
+        } else {
+          if (dot) dot.className = 'status-pulse-dot red';
+          if (badge) {
+            badge.className = 'backend-status-badge red';
+            badge.textContent = '🔴 浏览器不支持 IndexedDB';
+          }
         }
-        showToast('IndexedDB 本地私有离线盘运行良好！');
       }
     } catch (err) {
       if (dot) dot.className = 'status-pulse-dot red';
       if (badge) {
         badge.className = 'backend-status-badge red';
-        badge.textContent = '🔴 连接超时/异常';
+        badge.textContent = '🔴 连接失败/网络不可达';
       }
-      showToast(`存储源连通测试未通过: ${err.message || '网络异常'}`);
+      showToast(`连通测试未通过: ${err.message || '网络无法连接'}`);
     }
   }
 
@@ -1466,9 +1562,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     treeData = savedLocalTree ? JSON.parse(savedLocalTree) : (defaultData ? defaultData.tree : []);
     
-    // Auto-sync all files directly uploaded to GitHub via Git / Web / VSCode
-    await syncGitHubRepositoryTree();
-
+    // Ensure all 4 storage backends appear as top-level root folders
+    treeData = ensureMultiBackendRootTree(treeData);
     ensureNodeMetadata(treeData);
 
     recycleBin = savedRecycleBin ? JSON.parse(savedRecycleBin) : (defaultData ? defaultData.recycleBin || [] : []);
@@ -1743,6 +1838,118 @@ document.addEventListener('DOMContentLoaded', () => {
       renderRecycleBinList();
       showToast('回收站已全部清空！');
     }
+  }
+
+  function ensureMultiBackendRootTree(tree) {
+    if (!Array.isArray(tree)) tree = [];
+
+    // Root 1: GitHub
+    let githubRoot = tree.find(n => n.id === 'root_github');
+    if (!githubRoot) {
+      githubRoot = {
+        id: 'root_github',
+        type: 'folder',
+        name: '🐙 GitHub Pages / Raw 仓库 [云端主库]',
+        icon: 'fa-brands fa-github obsidian-green',
+        storageProvider: 'github',
+        expanded: true,
+        children: tree.filter(n => !n.id || !n.id.startsWith('root_'))
+      };
+      tree = [githubRoot];
+    } else {
+      githubRoot.name = '🐙 GitHub Pages / Raw 仓库 [云端主库]';
+      githubRoot.icon = 'fa-brands fa-github obsidian-green';
+      githubRoot.storageProvider = 'github';
+    }
+
+    // Root 2: Hugging Face
+    let hfRoot = tree.find(n => n.id === 'root_huggingface');
+    if (!hfRoot) {
+      hfRoot = {
+        id: 'root_huggingface',
+        type: 'folder',
+        name: '🤗 Hugging Face 挂载库 [模型/数据集]',
+        icon: 'fa-solid fa-cubes obsidian-purple',
+        storageProvider: 'huggingface',
+        expanded: false,
+        children: [
+          {
+            id: 'hf_sample_1',
+            type: 'link',
+            name: '🤗 Hugging Face Datasets 官方数据节点',
+            url: 'https://huggingface.co/datasets',
+            ext: 'link',
+            desc: '挂载的 HF 数据集地址',
+            size: '-'
+          }
+        ]
+      };
+      tree.push(hfRoot);
+    } else {
+      hfRoot.name = '🤗 Hugging Face 挂载库 [模型/数据集]';
+      hfRoot.icon = 'fa-solid fa-cubes obsidian-purple';
+      hfRoot.storageProvider = 'huggingface';
+    }
+
+    // Root 3: WebDAV
+    let webdavRoot = tree.find(n => n.id === 'root_webdav');
+    if (!webdavRoot) {
+      webdavRoot = {
+        id: 'root_webdav',
+        type: 'folder',
+        name: '☁️ WebDAV 统一云存储 [坚果云/Nextcloud]',
+        icon: 'fa-solid fa-cloud obsidian-cyan',
+        storageProvider: 'webdav',
+        expanded: false,
+        children: [
+          {
+            id: 'webdav_sample_1',
+            type: 'file',
+            name: 'WebDAV 云网盘挂载读取说明.md',
+            ext: 'md',
+            desc: 'WebDAV 云盘挂载引导',
+            size: '0.8 KB',
+            content: '# ☁️ WebDAV 云存储挂载节点\n\n您可以在【后台定制】中设置 WebDAV Endpoint、用户名与应用密码。\n设置后，此处将作为 WebDAV 在线盘进行读写与跨后端文件复制！'
+          }
+        ]
+      };
+      tree.push(webdavRoot);
+    } else {
+      webdavRoot.name = '☁️ WebDAV 统一云存储 [坚果云/Nextcloud]';
+      webdavRoot.icon = 'fa-solid fa-cloud obsidian-cyan';
+      webdavRoot.storageProvider = 'webdav';
+    }
+
+    // Root 4: IndexedDB Local Offline
+    let localRoot = tree.find(n => n.id === 'root_local');
+    if (!localRoot) {
+      localRoot = {
+        id: 'root_local',
+        type: 'folder',
+        name: '💾 IndexedDB 离线私有盘 [本地沙盒]',
+        icon: 'fa-solid fa-hard-drive obsidian-yellow',
+        storageProvider: 'local',
+        expanded: true,
+        children: [
+          {
+            id: 'local_sample_1',
+            type: 'file',
+            name: 'IndexedDB 离线私有文件草稿.md',
+            ext: 'md',
+            desc: '仅保存在本机浏览器的私有文件',
+            size: '1.1 KB',
+            content: '# 💾 本地 IndexedDB 离线私有空间\n\n保存在本文件夹内的文件只存在于您的本地浏览器中，绝不上传任何云端服务器。\n您可以随时将其复制或移动到 【🐙 GitHub 仓库】 或 【☁️ WebDAV】 进行云端同步！'
+          }
+        ]
+      };
+      tree.push(localRoot);
+    } else {
+      localRoot.name = '💾 IndexedDB 离线私有盘 [本地沙盒]';
+      localRoot.icon = 'fa-solid fa-hard-drive obsidian-yellow';
+      localRoot.storageProvider = 'local';
+    }
+
+    return tree;
   }
 
   function ensureNodeMetadata(nodes, parentPath = '') {
