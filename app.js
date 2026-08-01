@@ -312,6 +312,9 @@ document.addEventListener('DOMContentLoaded', () => {
   downloadFileBtn.addEventListener('click', downloadActiveFile);
   showPropertiesBtn.addEventListener('click', showActiveFileProperties);
 
+  codeTextarea.addEventListener('input', handleCodeInput);
+  codeTextarea.addEventListener('keydown', handleKeyInput);
+
   // Global Modal Close Delegation (Handles any close button or backdrop click)
   document.body.addEventListener('click', (e) => {
     if (e.target.closest('.modal-close')) {
@@ -2492,11 +2495,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Save tree structure to LocalStorage
     saveTreeToLocal();
 
-    // 3. Commit & push directly to GitHub Repository if GitHub API token is active
+    // 3. Commit & push directly to GitHub Repository if the file belongs to the GitHub backend and API token is active
     let githubUploaded = false;
+    const nodeProvider = getStorageProviderForNode(fileNode);
     const activeToken = getActiveGitHubToken();
 
-    if (siteConfig.storage_provider === 'github' && activeToken) {
+    const belongsToGitHub =
+      (nodeProvider === 'github' || !nodeProvider) &&
+      (siteConfig.storage_provider === 'github' || nodeProvider === 'github');
+
+    if (belongsToGitHub && activeToken) {
       saveFileBtn.disabled = true;
       saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在提交至 GitHub...';
 
@@ -2549,6 +2557,31 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       console.warn('LocalStorage quota exceeded, Relying on IndexedDB storage:', e);
     }
+  }
+
+  function getStorageProviderForNode(fileNode) {
+    if (!fileNode) return '';
+    if (fileNode.storageProvider) return fileNode.storageProvider;
+
+    const findInSubtree = (nodes, inheritedProvider) => {
+      for (const node of nodes || []) {
+        if (node === fileNode) return inheritedProvider || '';
+        if (node.type === 'folder') {
+          const provider = node.storageProvider || inheritedProvider || '';
+          const res = findInSubtree(node.children || [], provider);
+          if (res !== undefined) return res;
+        }
+      }
+      return undefined;
+    };
+
+    for (const root of treeData || []) {
+      const provider = root.storageProvider || '';
+      const res = findInSubtree([root], provider);
+      if (res !== undefined) return res;
+    }
+
+    return '';
   }
 
   function downloadActiveFile() {
