@@ -889,6 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const targetProvider = targetFolderNode ? getStorageProviderForNode(targetFolderNode) : '';
     const uploadToWebDAV = targetProvider === 'webdav';
     let webdavFolderUrl = '';
+    let webdavFail = false;
     if (uploadToWebDAV) {
       webdavFolderUrl = buildWebDAVFolderUrl(targetFolderNode || (treeData.find(n => n.id === 'root_webdav') || null));
     }
@@ -950,6 +951,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (putRes && (putRes.ok || putRes.status === 201 || putRes.status === 204)) {
           webdavUrl = putTarget;
+        } else {
+          webdavFail = true;
         }
       }
 
@@ -1006,7 +1009,11 @@ document.addEventListener('DOMContentLoaded', () => {
     confirmUploadFileBtn.innerHTML = '<i class="fa-solid fa-upload"></i> 确认解析并上传';
 
     closeAllModals();
-    showToast(`已成功同步并关联保存 ${totalFiles} 个文件！`);
+    if (uploadToWebDAV && webdavFail) {
+      showToast('文件已关联保存到本地，但 WebDAV 上传失败（浏览器 CORS 限制或凭据无效），坚果云等 WebDAV 服务不支持浏览器直连上传。');
+    } else {
+      showToast(`已成功同步并关联保存 ${totalFiles} 个文件！`);
+    }
   }
 
   function insertFileByPathParts(targetParentId, pathParts, file, textContent, fileUrl, fileId, timestamp) {
@@ -1401,7 +1408,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!cfg.url) return false;
     const dirUrl = buildWebDAVFolderUrl(folderNode);
     const responses = await webdavPropfind(dirUrl);
-    if (!responses || responses.length === 0) return false;
+    if (!responses || responses.length === 0) {
+      showToast('⚠️ WebDAV 目录刷新失败：浏览器跨域(CORS)限制或账号凭据无效，坚果云等 WebDAV 服务不支持浏览器直连，请改用本地代理或桌面客户端同步。');
+      return false;
+    }
 
     const parentServerPath = folderNode.id === 'root_webdav' ? '' : (folderNode.serverPath ? folderNode.serverPath.replace(/\/$/, '') : '');
     const children = parseWebDAVChildren(responses, cfg.url, parentServerPath, folderNode.serverPath || '');
@@ -2708,7 +2718,7 @@ document.addEventListener('DOMContentLoaded', () => {
         webdavUploaded = true;
       } else {
         setDirtyState(false);
-        showToast(`「${fileNode.name}」本地已保存，但 WebDAV 写入失败${putRes ? ' (HTTP ' + putRes.status + ')' : '（网络受限）'}，请在后台检查 WebDAV 配置。`);
+        showToast(`「${fileNode.name}」本地已保存，但 WebDAV 写入失败${putRes ? ' (HTTP ' + putRes.status + ')' : '（浏览器 CORS 限制或网络不通）'}。坚果云等 WebDAV 服务不支持浏览器直连写入，请改用本地代理或桌面客户端同步。`);
         return;
       }
     }
