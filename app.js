@@ -2949,8 +2949,11 @@ document.addEventListener('DOMContentLoaded', () => {
       saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="btn-label">提交中...</span>';
 
       const base64Content = btoa(unescape(encodeURIComponent(newContent)));
-      let targetPath = fileNode.name;
-      if (fileNode.url && fileNode.url.startsWith('files/')) {
+      // Preserve the full repository-relative path (folder + subfolders). The
+      // node's serverPath holds e.g. "files/docs/foo.md"; uploadFileToGitHub
+      // auto-prefixes "files/" only when the path lacks it.
+      let targetPath = fileNode.serverPath || fileNode.name;
+      if (!fileNode.serverPath && fileNode.url && fileNode.url.startsWith('files/')) {
         targetPath = fileNode.url.replace('files/', '');
       }
 
