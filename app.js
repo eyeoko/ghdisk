@@ -893,6 +893,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (uploadToWebDAV) {
       webdavFolderUrl = buildWebDAVFolderUrl(targetFolderNode || (treeData.find(n => n.id === 'root_webdav') || null));
     }
+    const uploadToHuggingFace = targetProvider === 'huggingface';
+    let hfFail = false;
 
     showToast(`正在解析上传 ${totalFiles} 个文件，请稍候...`);
 
@@ -928,7 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // GitHub Direct API Push
       let githubUrl = null;
       const activeToken = getActiveGitHubToken();
-      if (!uploadToWebDAV && siteConfig.storage_provider === 'github' && activeToken) {
+      if (!uploadToWebDAV && !uploadToHuggingFace && siteConfig.storage_provider === 'github' && activeToken) {
         githubUrl = await uploadFileToGitHub(file.name, base64Only);
       }
 
@@ -956,12 +958,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      const fileUrl = webdavUrl || githubUrl || (isText ? `files/${file.name}` : dataUrl);
+      // Hugging Face Direct Commit
+      let hfUrl = null;
+      if (uploadToHuggingFace) {
+        const parentPath = targetFolderNode && targetFolderNode.serverPath
+          ? targetFolderNode.serverPath.replace(/\/$/, '')
+          : '';
+        const relPath = uploadMode === 'folder' ? (file.webkitRelativePath || file.name) : file.name;
+        const targetPath = (parentPath ? parentPath + '/' : '') + relPath.replace(/\\/g, '/');
+        const ok = await uploadFileToHuggingFace(targetPath, base64Only, `Upload ${targetPath}`);
+        if (ok) {
+          hfUrl = buildHuggingFaceResolveUrl(targetPath);
+        } else {
+          hfFail = true;
+        }
+      }
+
+      const fileUrl = hfUrl || webdavUrl || githubUrl || (isText ? `files/${file.name}` : dataUrl);
 
       if (uploadMode === 'folder') {
         const relPath = file.webkitRelativePath || file.name;
         const pathParts = relPath.split('/');
         insertFileByPathParts(targetFolderId, pathParts, file, textContent, fileUrl, fileId, now);
+        if (hfUrl) {
+          const basePath = (targetFolderNode && targetFolderNode.serverPath ? targetFolderNode.serverPath.replace(/\/$/, '') : '');
+          const syncedNode = findNodeById(treeData, fileId);
+          if (syncedNode) syncedNode.serverPath = (basePath ? basePath + '/' : '') + relPath.replace(/\\/g, '/');
+        }
       } else {
         const newFileNode = {
           id: fileId,
@@ -977,6 +1000,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         if (webdavUrl) {
           const parentPath = targetFolderNode && targetFolderNode.id !== 'root_webdav' && targetFolderNode.serverPath
+            ? targetFolderNode.serverPath.replace(/\/$/, '')
+            : '';
+          newFileNode.serverPath = (parentPath ? parentPath + '/' : '') + file.name;
+        }
+        if (hfUrl) {
+          const parentPath = targetFolderNode && targetFolderNode.serverPath
             ? targetFolderNode.serverPath.replace(/\/$/, '')
             : '';
           newFileNode.serverPath = (parentPath ? parentPath + '/' : '') + file.name;
@@ -1011,6 +1040,8 @@ document.addEventListener('DOMContentLoaded', () => {
     closeAllModals();
     if (uploadToWebDAV && webdavFail) {
       showToast('文件已关联保存到本地，但 WebDAV 上传失败（浏览器 CORS 限制或凭据无效），坚果云等 WebDAV 服务不支持浏览器直连上传。');
+    } else if (uploadToHuggingFace && hfFail) {
+      showToast('文件已关联保存到本地，但 Hugging Face 上传失败，请检查 Token 与仓库权限。');
     } else {
       showToast(`已成功同步并关联保存 ${totalFiles} 个文件！`);
     }
@@ -1195,6 +1226,86 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getHuggingFaceConfig() {
+    return {
+      repo: (siteConfig && siteConfig.hf_repo ? siteConfig.hf_repo.trim() : ''),
+      branch: (siteConfig && siteConfig.hf_branch) || 'main',
+      token: (siteConfig && siteConfig.hf_token) || ''
+    };
+  }
+
+  function getHuggingFaceHeaders(extra) {
+    const cfg = getHuggingFaceConfig();
+    const headers = Object.assign({ 'Accept': 'application/json' }, extra || {});
+    if (cfg.token) headers['Authorization'] = `Bearer ${cfg.token}`;
+    return headers;
+  }
+
+  let hfRepoTypeCache = 'dataset';
+
+  async function detectHuggingFaceRepoType() {
+    const cfg = getHuggingFaceConfig();
+    if (!cfg.repo) return hfRepoTypeCache;
+    try {
+      const r = await fetch(`https://huggingface.co/api/datasets/${cfg.repo}/tree/${cfg.branch}?recursive=true`, { headers: getHuggingFaceHeaders() });
+      if (r.ok) { hfRepoTypeCache = 'dataset'; return 'dataset'; }
+      const r2 = await fetch(`https://huggingface.co/api/models/${cfg.repo}/tree/${cfg.branch}?recursive=true`, { headers: getHuggingFaceHeaders() });
+      if (r2.ok) { hfRepoTypeCache = 'model'; return 'model'; }
+    } catch (err) {
+      console.warn('Detect Hugging Face repo type failed:', err);
+    }
+    return hfRepoTypeCache;
+  }
+
+  function buildHuggingFaceResolveUrl(path, repoType) {
+    const cfg = getHuggingFaceConfig();
+    if (!cfg.repo) return '';
+    const isDataset = (repoType || hfRepoTypeCache || 'dataset') === 'dataset';
+    const base = isDataset
+      ? `https://huggingface.co/datasets/${cfg.repo}/resolve/${cfg.branch}`
+      : `https://huggingface.co/${cfg.repo}/resolve/${cfg.branch}`;
+    return `${base}/${(path || '').split('/').map(encodeURIComponent).join('/')}`;
+  }
+
+  async function commitHuggingFaceFiles(fileSpecs, commitMessage) {
+    const cfg = getHuggingFaceConfig();
+    if (!cfg.repo || !cfg.token) return false;
+    const repoType = await detectHuggingFaceRepoType();
+    const base = repoType === 'dataset' ? 'datasets' : 'models';
+    const msg = commitMessage || 'Update via ghdisk netdisk';
+    const payload = {
+      files: fileSpecs,
+      commit_message: msg,
+      repo_type: repoType,
+      summary: msg
+    };
+    try {
+      const res = await fetch(`https://huggingface.co/api/${base}/${cfg.repo}/commit/${cfg.branch}`, {
+        method: 'POST',
+        headers: getHuggingFaceHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return !!(data && data.success);
+      }
+      const errText = await res.text().catch(() => '');
+      console.warn('Hugging Face commit failed', res.status, errText.slice(0, 200));
+      return false;
+    } catch (err) {
+      console.warn('Hugging Face commit error:', err);
+      return false;
+    }
+  }
+
+  async function uploadFileToHuggingFace(repoPath, base64Content, commitMessage) {
+    return commitHuggingFaceFiles([{
+      path: repoPath,
+      content: base64Content,
+      encoding: 'base64'
+    }], commitMessage);
+  }
+
   async function syncHuggingFaceRepositoryTree() {
     const hfRepo = siteConfig && siteConfig.hf_repo ? siteConfig.hf_repo.trim() : '';
     if (!hfRepo) return false;
@@ -1220,18 +1331,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (res.ok) {
+        hfRepoTypeCache = isDataset ? 'dataset' : 'model';
         const items = await res.json();
         if (Array.isArray(items) && items.length > 0) {
           const newChildren = [];
           items.forEach(item => {
-            if (item.type === 'file') {
+            if (item.type === 'file' && !item.path.endsWith('/.keep')) {
               const pathParts = item.path.split('/');
               const filename = pathParts.pop();
               const ext = (filename.split('.').pop() || 'txt').toLowerCase();
-
-              const rawUrl = isDataset
-                ? `https://huggingface.co/datasets/${hfRepo}/raw/${hfBranch}/${item.path}`
-                : `https://huggingface.co/${hfRepo}/raw/${hfBranch}/${item.path}`;
 
               insertFileIntoTreeByPathParts(newChildren, pathParts, {
                 id: 'hf_' + Math.random().toString(36).substring(2, 9),
@@ -1239,8 +1347,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: filename,
                 ext: ext,
                 desc: `Hugging Face 仓库同步 (${hfRepo})`,
-                size: item.size ? (item.size > 1024 * 1024 ? (item.size / (1024 * 1024)).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB') : '资源文件',
-                url: rawUrl
+                size: item.size ? (item.size > 1024 * 1024 ? (item.size / 1024 / 1024).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB') : '资源文件',
+                url: buildHuggingFaceResolveUrl(item.path, isDataset ? 'dataset' : 'model'),
+                serverPath: item.path
               });
             }
           });
@@ -1262,8 +1371,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function insertFileIntoTreeByPathParts(currentChildren, pathParts, fileNode) {
     let parent = currentChildren;
+    let accPath = '';
     for (let part of pathParts) {
       if (!part) continue;
+      accPath = accPath ? accPath + '/' + part : part;
       let folder = parent.find(c => c.type === 'folder' && c.name === part);
       if (!folder) {
         folder = {
@@ -1272,6 +1383,7 @@ document.addEventListener('DOMContentLoaded', () => {
           name: part,
           icon: 'fa-solid fa-folder',
           expanded: true,
+          serverPath: accPath,
           children: []
         };
         parent.push(folder);
@@ -1762,6 +1874,23 @@ document.addEventListener('DOMContentLoaded', () => {
     switchTab(tab.id);
   }
 
+  async function loadHuggingFacePreviewUrl(fileNode) {
+    const cfg = getHuggingFaceConfig();
+    if (!cfg.repo) return fileNode.url || '';
+    if (fileNode.url && fileNode.url.startsWith('data:')) return fileNode.url;
+    const url = fileNode.url || buildHuggingFaceResolveUrl(fileNode.serverPath || fileNode.name, hfRepoTypeCache);
+    if (!url) return '';
+    try {
+      const res = await fetch(encodeURI(url), { headers: getHuggingFaceHeaders({ 'Accept': '*/*' }) });
+      if (!res.ok) return '';
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    } catch (err) {
+      console.warn('Hugging Face preview load failed:', err);
+      return '';
+    }
+  }
+
   async function renderActiveTabContent(tab) {
     const fileNode = tab.fileNode;
     currentFileName.textContent = fileNode.name;
@@ -1794,14 +1923,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (ext === 'pdf') {
       pdfPreviewContainer.style.display = 'flex';
       saveFileBtn.style.display = 'none';
-      pdfIframe.src = encodeURI(fileNode.url);
+      const pdfProvider = getStorageProviderForNode(fileNode);
+      if (pdfProvider === 'huggingface') {
+        const previewUrl = await loadHuggingFacePreviewUrl(fileNode);
+        if (previewUrl) {
+          pdfIframe.src = previewUrl;
+        } else {
+          showToast('⚠️ Hugging Face PDF 预览失败：无法访问文件（检查 Token 与仓库权限）。');
+        }
+      } else {
+        pdfIframe.src = encodeURI(fileNode.url);
+      }
       return;
     }
 
     if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) {
       imagePreviewContainer.style.display = 'flex';
       saveFileBtn.style.display = 'none';
-      imageElement.src = encodeURI(fileNode.url);
+      const imgProvider = getStorageProviderForNode(fileNode);
+      if (imgProvider === 'huggingface') {
+        const previewUrl = await loadHuggingFacePreviewUrl(fileNode);
+        if (previewUrl) {
+          imageElement.src = previewUrl;
+        } else {
+          showToast('⚠️ Hugging Face 图片预览失败：无法访问文件（检查 Token 与仓库权限）。');
+        }
+      } else {
+        imageElement.src = encodeURI(fileNode.url);
+      }
       return;
     }
 
@@ -1812,6 +1961,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let res;
         if (nodeProvider === 'webdav') {
           res = await webdavFetch(encodeURI(fileNode.url), { headers: getWebDAVHeaders({ 'Accept': '*/*' }) });
+        } else if (nodeProvider === 'huggingface') {
+          res = await fetch(encodeURI(fileNode.url), { headers: getHuggingFaceHeaders({ 'Accept': '*/*' }) });
         } else {
           res = await fetch(encodeURI(fileNode.url));
         }
@@ -1988,6 +2139,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let webdavCreated = false;
       let webdavFileUrl = '';
+      let hfCreated = false;
+      let hfFileUrl = '';
       if (isWebDAVTarget && webdavFolderUrl) {
         const putTarget = webdavFolderUrl.replace(/\/$/, '') + '/' + encodeURIComponent(fileName);
         const content = `# ${fileName}\n# 创建时间: ${now}\n\n`;
@@ -2011,6 +2164,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      if (targetProvider === 'huggingface') {
+        const parentPath = targetFolderNode && targetFolderNode.serverPath ? targetFolderNode.serverPath.replace(/\/$/, '') : '';
+        const targetPath = (parentPath ? parentPath + '/' : '') + fileName;
+        const content = `# ${fileName}\n# 创建时间: ${now}\n\n`;
+        const base64Content = btoa(unescape(encodeURIComponent(content)));
+        const ok = await uploadFileToHuggingFace(targetPath, base64Content, `Create ${targetPath}`);
+        if (ok) {
+          hfCreated = true;
+          hfFileUrl = buildHuggingFaceResolveUrl(targetPath);
+        } else {
+          alert('Hugging Face 文件创建失败，请检查 Token 与仓库权限。');
+          return;
+        }
+      }
+
       const newFile = {
         id: 'file_' + Date.now(),
         type: 'file',
@@ -2020,10 +2188,14 @@ document.addEventListener('DOMContentLoaded', () => {
         createdAt: now,
         updatedAt: now,
         size: '0 Bytes',
-        url: webdavFileUrl || `files/${fileName}`,
+        url: hfFileUrl || webdavFileUrl || `files/${fileName}`,
         content: `# ${fileName}\n# 创建时间: ${now}\n\n`
       };
       if (webdavCreated) {
+        const parentPath = targetFolderNode && targetFolderNode.serverPath ? targetFolderNode.serverPath.replace(/\/$/, '') : '';
+        newFile.serverPath = (parentPath ? parentPath + '/' : '') + fileName;
+      }
+      if (hfCreated) {
         const parentPath = targetFolderNode && targetFolderNode.serverPath ? targetFolderNode.serverPath.replace(/\/$/, '') : '';
         newFile.serverPath = (parentPath ? parentPath + '/' : '') + fileName;
       }
@@ -2044,7 +2216,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderTree();
       openFileInEditor(newFile);
       closeAllModals();
-      showToast(`文件「${fileName}」创建成功！${webdavCreated ? '（已写入 WebDAV 云盘）' : ''}`);
+      showToast(`文件「${fileName}」创建成功！${webdavCreated ? '（已写入 WebDAV 云盘）' : ''}${hfCreated ? '（已写入 Hugging Face 仓库）' : ''}`);
     }
   }
 
@@ -2723,12 +2895,38 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // 4b. Write back to Hugging Face repository via commit API
+    let hfUploaded = false;
+    if (nodeProvider === 'huggingface') {
+      saveFileBtn.disabled = true;
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在写入 Hugging Face...';
+
+      let targetPath = fileNode.serverPath || fileNode.name;
+      const base64Content = btoa(unescape(encodeURIComponent(newContent)));
+      const ok = await uploadFileToHuggingFace(targetPath, base64Content, `Update ${targetPath}`);
+
+      saveFileBtn.disabled = false;
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 保存文件';
+
+      if (ok) {
+        fileNode.url = buildHuggingFaceResolveUrl(targetPath);
+        fileNode.content = newContent;
+        hfUploaded = true;
+      } else {
+        setDirtyState(false);
+        showToast(`「${fileNode.name}」本地已保存，但 Hugging Face 写入失败，请检查 Token 与仓库权限。`);
+        return;
+      }
+    }
+
     setDirtyState(false);
 
     if (githubUploaded) {
       showToast(`「${fileNode.name}」已保存并实时 Commit 提交至 GitHub 仓库！`);
     } else if (webdavUploaded) {
       showToast(`「${fileNode.name}」已保存并实时写入 WebDAV 云盘！`);
+    } else if (hfUploaded) {
+      showToast(`「${fileNode.name}」已保存并实时写入 Hugging Face 仓库！`);
     } else {
       showToast(`「${fileNode.name}」已成功保存！`);
     }
@@ -2785,16 +2983,74 @@ document.addEventListener('DOMContentLoaded', () => {
     return '';
   }
 
-  function downloadActiveFile() {
+  async function downloadActiveFile() {
     const activeTab = getActiveTab();
     if (!activeTab || !activeTab.fileNode) return;
+
+    const fileNode = activeTab.fileNode;
+    const ext = (fileNode.ext || fileNode.name.split('.').pop() || '').toLowerCase();
+    const nodeProvider = getStorageProviderForNode(fileNode);
+    const isBinary = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'zip', 'rar', '7z', 'mp4', 'mp3', 'wav', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'apk', 'exe', 'iso'].includes(ext);
+
+    // Remote providers: download the real file bytes
+    if (nodeProvider === 'huggingface' && fileNode.url) {
+      try {
+        const res = await fetch(encodeURI(fileNode.url), { headers: getHuggingFaceHeaders({ 'Accept': '*/*' }) });
+        if (!res.ok) {
+          showToast('⚠️ Hugging Face 文件下载失败（检查 Token 与仓库权限）。');
+          return;
+        }
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileNode.name;
+        a.click();
+        showToast(`已下载 ${fileNode.name}（${(blob.size / 1024).toFixed(1)} KB）`);
+        return;
+      } catch (err) {
+        console.warn('Hugging Face download failed:', err);
+        showToast('⚠️ Hugging Face 文件下载失败（网络错误）。');
+        return;
+      }
+    }
+
+    if (nodeProvider === 'webdav' && fileNode.url) {
+      try {
+        const res = await webdavFetch(encodeURI(fileNode.url), { headers: getWebDAVHeaders({ 'Accept': '*/*' }) });
+        if (!res || !res.ok) {
+          showToast(`⚠️ WebDAV 文件下载失败${res ? ' (HTTP ' + res.status + ')' : '（CORS 限制或网络不通）'}。`);
+          return;
+        }
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileNode.name;
+        a.click();
+        showToast(`已下载 ${fileNode.name}（${(blob.size / 1024).toFixed(1)} KB）`);
+        return;
+      } catch (err) {
+        console.warn('WebDAV download failed:', err);
+        showToast('⚠️ WebDAV 文件下载失败（网络错误）。');
+        return;
+      }
+    }
+
+    // Local files: binary via dataUrl, text via editor content
+    if (isBinary && fileNode.url && fileNode.url.startsWith('data:')) {
+      const a = document.createElement('a');
+      a.href = fileNode.url;
+      a.download = fileNode.name;
+      a.click();
+      showToast(`已下载 ${fileNode.name}`);
+      return;
+    }
 
     const blob = new Blob([codeTextarea.value], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = activeTab.fileNode.name;
+    a.download = fileNode.name;
     a.click();
-    showToast(`已导出 ${activeTab.fileNode.name}`);
+    showToast(`已导出 ${fileNode.name}`);
   }
 
   function showActiveFileProperties() {
@@ -2846,6 +3102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const parentProvider = parentNode ? getStorageProviderForNode(parentNode) : '';
     let newFolderServerPath = '';
     let mkcolOk = true;
+    let hfFolderCreated = false;
 
     if (parentProvider === 'webdav') {
       const baseFolderUrl = buildWebDAVFolderUrl(parentNode || (treeData.find(n => n.id === 'root_webdav') || null));
@@ -2871,6 +3128,19 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    if (parentProvider === 'huggingface') {
+      const parentPath = parentNode && parentNode.serverPath ? parentNode.serverPath.replace(/\/$/, '') : '';
+      const folderPath = (parentPath ? parentPath + '/' : '') + name;
+      newFolderServerPath = folderPath + '/';
+      const ok = await uploadFileToHuggingFace(folderPath + '/.keep', btoa(''), `Create folder ${folderPath}`);
+      if (ok) {
+        hfFolderCreated = true;
+      } else {
+        alert('Hugging Face 目录创建失败，请检查 Token 与仓库权限。');
+        return;
+      }
+    }
+
     const newFolder = {
       id: 'folder_' + Date.now(),
       type: 'folder',
@@ -2884,6 +3154,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (parentProvider === 'webdav') {
       newFolder.serverPath = newFolderServerPath;
       newFolder.loaded = true;
+    }
+    if (parentProvider === 'huggingface') {
+      newFolder.serverPath = newFolderServerPath;
     }
 
     if (parentId === 'root') {
@@ -2901,7 +3174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveTreeToLocal();
     renderTree();
     closeAllModals();
-    showToast(`目录「${name}」创建成功！${mkcolOk && parentProvider === 'webdav' ? '（已写入 WebDAV 云盘）' : ''}`);
+    showToast(`目录「${name}」创建成功！${mkcolOk && parentProvider === 'webdav' ? '（已写入 WebDAV 云盘）' : ''}${hfFolderCreated ? '（已写入 Hugging Face 仓库）' : ''}`);
   }
 
   function openNewFileModal() {

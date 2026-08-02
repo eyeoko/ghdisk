@@ -66,8 +66,13 @@ IndexedDB 的文件保存在 **您当前使用的 Web 浏览器存储目录** �
   3. **填写仓库信息**：
      - **HF 仓库名称**：例如 `your-username/my-dataset`
      - **HF Branch 分支**：`main`
-     - **HF Access Token**（可选）：填写在 Hugging Face Settings -> Tokens 中生成的 `hf_xxxxx` 访问令牌。
+     - **HF Access Token**：填写在 Hugging Face Settings -> Tokens 中生成的 `hf_xxxxx` 访问令牌。**注意：若仓库为私有（Private），或需要对文件进行读取（预览/下载）与写入（新建/上传/保存），则必须填写 Token。**
   4. 点击 **【保存存储源与站点设置】** 即可完成 Hugging Face 仓库关联！
+- **完整读写能力**：本项目已实现对 Hugging Face 仓库的完整读写链路，全部通过官方 Hub API（浏览器直连，支持 CORS）：
+  - **读取/预览**：图片、PDF、文本等文件均通过带 Bearer Token 的 `resolve` URL 拉取真实内容（自动解析 Git LFS 指针），私有仓库也可正常预览与下载。
+  - **新建文件夹**：通过提交 `.keep` 占位文件在云端真实创建目录。
+  - **新建文件 / 上传**：通过 `commit` API 以 base64 方式写入任意路径（支持文本与二进制），可上传整个文件夹结构。
+  - **保存修改**：编辑后的文本内容实时 Commit 回写 Hugging Face 仓库。
 
 ### 3. 📁 WebDAV 统一云存储（坚果云 / Nextcloud / ownCloud）
 - **支持网盘**：坚果云 (Jianguoyun)、Nextcloud、ownCloud 等标准 WebDAV 网盘。
