@@ -6,11 +6,13 @@
   <title id="html-title">简易个人多源网盘</title>
   <meta name="description" content="支持关联 GitHub、Hugging Face 数据集仓库与 WebDAV (坚果云/Nextcloud) 存储服务、自定义CDN加速、多标签页无缝切换">
   <link rel="stylesheet" href="style.css">
-  <!-- Google Fonts & FontAwesome icons -->
+  <!-- Google Fonts & FontAwesome icons (loaded non-blocking: media=print trick + onload swap) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet"></noscript>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   <link id="dynamic-favicon" rel="icon" type="image/png" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%236366f1'/%3E%3Ctext x='16' y='22' font-size='18' text-anchor='middle' font-family='Arial' fill='white'%3E%E2%9D%96%3C/text%3E%3C/svg%3E">
 </head>
 <body class="theme-dark mode-readonly">

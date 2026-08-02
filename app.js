@@ -1747,12 +1747,15 @@ document.addEventListener('DOMContentLoaded', () => {
   async function handleGlobalRefresh() {
     globalRefreshBtn.querySelector('i').classList.add('fa-spin');
 
-    // Re-sync remote trees from each backend. Manually created nodes (links /
-    // local folders) are preserved by the sync functions; only remote-derived
-    // (git_*/hf_*/webdav_*) nodes are rebuilt to mirror the live backends.
-    const syncedG = await syncGitHubRepositoryTree();
-    const syncedH = await syncHuggingFaceRepositoryTree();
-    const syncedW = await syncWebDAVRepositoryTree();
+    // Re-sync remote trees from each backend in parallel. Manually created
+    // nodes (links / local folders) are preserved by the sync functions; only
+    // remote-derived (git_*/hf_*/webdav_*) nodes are rebuilt to mirror the
+    // live backends.
+    const [syncedG, syncedH, syncedW] = await Promise.all([
+      syncGitHubRepositoryTree(),
+      syncHuggingFaceRepositoryTree(),
+      syncWebDAVRepositoryTree()
+    ]);
 
     ensureNodeMetadata(treeData);
     saveTreeToLocal();
@@ -2124,7 +2127,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let defaultData = null;
     try {
-      const res = await fetch('data.json?v=' + Date.now());
+      const res = await fetch('data.json');
       if (res.ok) defaultData = await res.json();
     } catch (e) {
       console.log('fetch(data.json) file:// 回退使用 data.js');
@@ -2142,18 +2145,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ensure all 4 storage backends appear as top-level root folders
     treeData = ensureMultiBackendRootTree(treeData);
     
-    // Auto-sync remote files directly from GitHub, Hugging Face, and WebDAV
-    await syncGitHubRepositoryTree();
-    await syncHuggingFaceRepositoryTree();
-    await syncWebDAVRepositoryTree();
-
     ensureNodeMetadata(treeData);
 
     recycleBin = savedRecycleBin ? JSON.parse(savedRecycleBin) : (defaultData ? defaultData.recycleBin || [] : []);
     cleanExpiredRecycleBin();
 
+    // Render the (cached) tree immediately so the page is usable before any
+    // remote network calls finish.
+    renderTree();
     updatePermissionUI();
     updateRecycleBadge();
+
+    // Auto-sync remote files from GitHub, Hugging Face, and WebDAV in
+    // parallel (they do not depend on each other), so the first paint is not
+    // blocked on sequential network round-trips.
+    try {
+      await Promise.all([
+        syncGitHubRepositoryTree(),
+        syncHuggingFaceRepositoryTree(),
+        syncWebDAVRepositoryTree()
+      ]);
+    } catch (e) {
+      console.warn('Remote sync on load failed:', e);
+    }
   }
 
   function updateFavicon() {
