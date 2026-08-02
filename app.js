@@ -2,6 +2,21 @@
  * YS168 & Obsidian Style - Full Application Script with Multi-Storage Driver and Smooth Admin Settings Prompt
  */
 
+const THEME_PALETTES = {
+  purple:   { name: '紫晶紫',   color: '#a855f7', icon: 'fa-solid fa-gem' },
+  blue:     { name: '海洋蓝',   color: '#3b82f6', icon: 'fa-solid fa-water' },
+  cyan:     { name: '冰青',     color: '#06b6d4', icon: 'fa-solid fa-snowflake' },
+  emerald:  { name: '翡翠绿',   color: '#10b981', icon: 'fa-solid fa-leaf' },
+  orange:   { name: '日落橙',   color: '#f97316', icon: 'fa-solid fa-sun' },
+  rose:     { name: '玫瑰粉',   color: '#ec4899', icon: 'fa-solid fa-rose' },
+  red:      { name: '中国红',   color: '#ef4444', icon: 'fa-solid fa-fire' },
+  graphite: { name: '石墨灰',   color: '#64748b', icon: 'fa-solid fa-mountain' },
+  lime:     { name: '青柠绿',   color: '#84cc16', icon: 'fa-solid fa-bolt' },
+  indigo:   { name: '靛蓝',     color: '#6366f1', icon: 'fa-solid fa-wand-magic-sparkles' },
+};
+
+const DEFAULT_THEME = { mode: 'dark', palette: 'purple', custom: null };
+
 document.addEventListener('DOMContentLoaded', () => {
   // App State
   let siteConfig = null;
@@ -87,6 +102,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const recycleCountBadge = document.getElementById('recycle-count-badge');
   const exportConfigBtn = document.getElementById('export-config-btn');
   const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  const themeModal = document.getElementById('theme-modal');
+  const themeModeBtns = document.querySelectorAll('.theme-mode-btn');
+  const themePaletteGrid = document.getElementById('theme-palette-grid');
+  const themeCustomColor = document.getElementById('theme-custom-color');
+  const themeCustomHex = document.getElementById('theme-custom-hex');
+  const themeResetBtn = document.getElementById('theme-reset-btn');
   const searchInput = document.getElementById('search-input');
   const clearSearchBtn = document.getElementById('clear-search');
 
@@ -261,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') handlePasswordVerify();
   });
 
-  themeToggleBtn.addEventListener('click', toggleTheme);
+  themeToggleBtn.addEventListener('click', openThemeModal);
   expandAllTreeBtn.addEventListener('click', () => setAllFoldersExpanded(true));
   collapseAllTreeBtn.addEventListener('click', () => setAllFoldersExpanded(false));
   searchInput.addEventListener('input', handleSearch);
@@ -271,6 +292,14 @@ document.addEventListener('DOMContentLoaded', () => {
   openUploadBtn.addEventListener('click', openUploadModal);
   openAdminSettingsBtn.addEventListener('click', openAdminSettingsModal);
   saveSettingsBtn.addEventListener('click', saveAdminSettings);
+
+  themeModeBtns.forEach(btn => btn.addEventListener('click', () => setThemeMode(btn.dataset.mode)));
+  themePaletteGrid.addEventListener('click', (e) => {
+    const swatch = e.target.closest('.theme-swatch');
+    if (swatch) selectThemePalette(swatch.dataset.palette);
+  });
+  themeCustomColor.addEventListener('input', () => selectThemeCustomColor(themeCustomColor.value));
+  themeResetBtn.addEventListener('click', resetTheme);
 
   openRecycleBinBtn.addEventListener('click', openRecycleBinModal);
   emptyTrashBtn.addEventListener('click', handleEmptyTrash);
@@ -3835,22 +3864,182 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('mouseup', () => { isResizing = false; });
   }
 
+  function getThemeState() {
+    try {
+      const raw = localStorage.getItem('ys_theme');
+      if (!raw) return { ...DEFAULT_THEME };
+      if (raw === 'theme-dark' || raw === 'theme-light') {
+        return { ...DEFAULT_THEME, mode: raw === 'theme-light' ? 'light' : 'dark' };
+      }
+      const parsed = JSON.parse(raw);
+      return { mode: parsed.mode === 'light' ? 'light' : 'dark', palette: parsed.palette || 'purple', custom: parsed.custom || null };
+    } catch (e) {
+      return { ...DEFAULT_THEME };
+    }
+  }
+
+  function saveThemeState(state) {
+    localStorage.setItem('ys_theme', JSON.stringify(state));
+  }
+
+  function hexToRgb(hex) {
+    const m = hex.replace('#', '');
+    const full = m.length === 3 ? m.split('').map(c => c + c).join('') : m;
+    const n = parseInt(full, 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+
+  function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+  }
+
+  function mixHex(hex, target, weight) {
+    const a = hexToRgb(hex);
+    const b = hexToRgb(target);
+    return rgbToHex(a.r + (b.r - a.r) * weight, a.g + (b.g - a.g) * weight, a.b + (b.b - a.b) * weight);
+  }
+
+  function rgbaOf(hex, alpha) {
+    const { r, g, b } = hexToRgb(hex);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function hexLuminance(hex) {
+    const { r, g, b } = hexToRgb(hex);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+
+  function applyTheme() {
+    const state = getThemeState();
+    const isDark = state.mode === 'dark';
+    document.body.classList.toggle('theme-dark', isDark);
+    document.body.classList.toggle('theme-light', !isDark);
+
+    const base = state.custom || (THEME_PALETTES[state.palette] || THEME_PALETTES.purple).color;
+
+    if (state.custom) {
+      const light = hexLuminance(base);
+      document.body.style.setProperty('--primary-color', base);
+      document.body.style.setProperty('--primary-hover', light > 0.6 ? mixHex(base, '#000000', 0.2) : mixHex(base, '#ffffff', 0.25));
+      document.body.style.setProperty('--primary-light', rgbaOf(base, 0.18));
+      document.body.style.setProperty('--accent-color', mixHex(base, isDark ? '#ffffff' : '#000000', 0.15));
+      document.body.style.setProperty('--border-hover', mixHex(base, '#ffffff', 0.25));
+      document.body.style.setProperty('--tree-active', rgbaOf(base, 0.22));
+    } else {
+      const darkVars = {
+        purple:   { primary: '#a855f7', hover: '#c084fc', light: 'rgba(168,85,247,0.15)', accent: '#818cf8' },
+        blue:     { primary: '#3b82f6', hover: '#60a5fa', light: 'rgba(59,130,246,0.15)', accent: '#38bdf8' },
+        cyan:     { primary: '#06b6d4', hover: '#22d3ee', light: 'rgba(6,182,212,0.15)', accent: '#818cf8' },
+        emerald:  { primary: '#10b981', hover: '#34d399', light: 'rgba(16,185,129,0.15)', accent: '#818cf8' },
+        orange:   { primary: '#f97316', hover: '#fb923c', light: 'rgba(249,115,22,0.15)', accent: '#818cf8' },
+        rose:     { primary: '#ec4899', hover: '#f472b6', light: 'rgba(236,72,153,0.15)', accent: '#818cf8' },
+        red:      { primary: '#ef4444', hover: '#f87171', light: 'rgba(239,68,68,0.15)', accent: '#818cf8' },
+        graphite: { primary: '#64748b', hover: '#94a3b8', light: 'rgba(100,116,139,0.18)', accent: '#818cf8' },
+        lime:     { primary: '#84cc16', hover: '#a3e635', light: 'rgba(132,204,22,0.15)', accent: '#818cf8' },
+        indigo:   { primary: '#6366f1', hover: '#818cf8', light: 'rgba(99,102,241,0.15)', accent: '#38bdf8' },
+      };
+      const lightVars = {
+        purple:   { primary: '#9333ea', hover: '#a855f7', light: '#f3e8ff', accent: '#7c3aed' },
+        blue:     { primary: '#2563eb', hover: '#3b82f6', light: '#dbeafe', accent: '#0284c7' },
+        cyan:     { primary: '#0891b2', hover: '#06b6d4', light: '#cffafe', accent: '#0284c7' },
+        emerald:  { primary: '#059669', hover: '#10b981', light: '#d1fae5', accent: '#047857' },
+        orange:   { primary: '#ea580c', hover: '#f97316', light: '#ffedd5', accent: '#c2410c' },
+        rose:     { primary: '#db2777', hover: '#ec4899', light: '#fce7f3', accent: '#be185d' },
+        red:      { primary: '#dc2626', hover: '#ef4444', light: '#fee2e2', accent: '#b91c1c' },
+        graphite: { primary: '#475569', hover: '#64748b', light: '#f1f5f9', accent: '#334155' },
+        lime:     { primary: '#65a30d', hover: '#84cc16', light: '#ecfccb', accent: '#4d7c0f' },
+        indigo:   { primary: '#4f46e5', hover: '#6366f1', light: '#e0e7ff', accent: '#4338ca' },
+      };
+      const vars = (isDark ? darkVars : lightVars)[state.palette] || (isDark ? darkVars.purple : lightVars.purple);
+      document.body.style.setProperty('--primary-color', vars.primary);
+      document.body.style.setProperty('--primary-hover', vars.hover);
+      document.body.style.setProperty('--primary-light', vars.light);
+      document.body.style.setProperty('--accent-color', vars.accent);
+      document.body.style.setProperty('--border-hover', isDark ? vars.hover : vars.primary);
+      document.body.style.setProperty('--tree-active', rgbaOf(vars.primary, isDark ? 0.22 : 0.15));
+    }
+
+    updateThemeSwatches();
+    updateThemeControls();
+    updateThemeIcon();
+  }
+
+  function renderThemePalettes() {
+    themePaletteGrid.innerHTML = '';
+    Object.entries(THEME_PALETTES).forEach(([key, p]) => {
+      const swatch = document.createElement('button');
+      swatch.type = 'button';
+      swatch.className = 'theme-swatch';
+      swatch.dataset.palette = key;
+      swatch.innerHTML = `<span class="theme-swatch-colorbar" style="background:${p.color}"></span><span class="theme-swatch-name"><i class="${p.icon}"></i> ${p.name}</span>`;
+      themePaletteGrid.appendChild(swatch);
+    });
+  }
+
+  function updateThemeSwatches() {
+    const state = getThemeState();
+    themePaletteGrid.querySelectorAll('.theme-swatch').forEach(el => {
+      const active = !state.custom && el.dataset.palette === state.palette;
+      el.classList.toggle('active', active);
+      el.querySelector('.fa-check')?.remove();
+      if (active) {
+        const check = document.createElement('i');
+        check.className = 'fa-solid fa-check';
+        el.appendChild(check);
+      }
+    });
+  }
+
+  function updateThemeControls() {
+    const state = getThemeState();
+    themeModeBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === state.mode));
+    themeCustomColor.value = state.custom || (THEME_PALETTES[state.palette] || THEME_PALETTES.purple).color;
+    themeCustomHex.textContent = themeCustomColor.value;
+  }
+
+  function openThemeModal() {
+    renderThemePalettes();
+    updateThemeSwatches();
+    updateThemeControls();
+    themeModal.style.display = 'flex';
+  }
+
+  function setThemeMode(mode) {
+    const state = getThemeState();
+    state.mode = mode === 'light' ? 'light' : 'dark';
+    saveThemeState(state);
+    applyTheme();
+  }
+
+  function selectThemePalette(key) {
+    const state = getThemeState();
+    state.palette = key;
+    state.custom = null;
+    saveThemeState(state);
+    applyTheme();
+  }
+
+  function selectThemeCustomColor(color) {
+    const state = getThemeState();
+    state.custom = color;
+    state.palette = 'purple';
+    saveThemeState(state);
+    applyTheme();
+  }
+
+  function resetTheme() {
+    saveThemeState({ ...DEFAULT_THEME });
+    applyTheme();
+    showToast('已恢复默认主题配色');
+  }
+
   function initTheme() {
-    const saved = localStorage.getItem('ys_theme') || 'theme-dark';
-    document.body.className = saved;
-    updateThemeIcon(saved);
+    renderThemePalettes();
+    applyTheme();
   }
 
-  function toggleTheme() {
-    const isDark = document.body.classList.contains('theme-dark');
-    const newTheme = isDark ? 'theme-light' : 'theme-dark';
-    document.body.className = newTheme;
-    localStorage.setItem('ys_theme', newTheme);
-    updateThemeIcon(newTheme);
-  }
-
-  function updateThemeIcon(theme) {
-    themeToggleBtn.innerHTML = theme === 'theme-dark' ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+  function updateThemeIcon() {
+    themeToggleBtn.innerHTML = '<i class="fa-solid fa-palette" style="color:var(--primary-color)"></i>';
   }
 
   function showToast(msg) {
