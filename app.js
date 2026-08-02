@@ -1041,7 +1041,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (targetFolderId === 'root') {
-          treeData.push(newFileNode);
+          const githubRoot = (treeData || []).find(n => n.id === 'root_github');
+          if (githubRoot) {
+            if (!githubRoot.children) githubRoot.children = [];
+            githubRoot.children.push(newFileNode);
+          } else {
+            treeData.push(newFileNode);
+          }
         } else {
           const folder = findNodeById(treeData, targetFolderId);
           if (folder) {
@@ -1153,7 +1159,13 @@ document.addEventListener('DOMContentLoaded', () => {
       pastedNode.updatedAt = now;
 
       if (targetFolderId === 'root') {
-        treeData.push(pastedNode);
+        const githubRoot = (treeData || []).find(n => n.id === 'root_github');
+        if (githubRoot) {
+          if (!githubRoot.children) githubRoot.children = [];
+          githubRoot.children.push(pastedNode);
+        } else {
+          treeData.push(pastedNode);
+        }
       } else {
         const targetFolder = findNodeById(treeData, targetFolderId);
         if (targetFolder) {
@@ -1233,18 +1245,31 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (!data.tree || !Array.isArray(data.tree)) return false;
 
-      const ignoreRoot = ['index.html', 'style.css', 'app.js', 'data.json', 'data.js', 'README.md', 'LICENSE', '.gitignore', '.gitattributes'];
+      const githubRoot = treeData ? treeData.find(n => n.id === 'root_github') : null;
+      if (!githubRoot) return false;
+
+      const ignoreRoot = ['index.html', 'style.css', 'app.js', 'data.json', 'data.js', 'README.md', 'LICENSE', '.gitignore', '.gitattributes', '.nojekyll', 'CNAME'];
+
+      // Rebuild the GitHub root children from the live repository, so the tree
+      // always mirrors the remote. Only user-created link shortcuts are
+      // preserved across refreshes; remote-derived nodes are fully rebuilt.
+      const manualLinks = (githubRoot.children || []).filter(n => n.type === 'link' && (n.id || '').startsWith('link_'));
+      githubRoot.children = [];
 
       data.tree.forEach(item => {
         if (ignoreRoot.includes(item.path)) return;
 
         const pathParts = item.path.split('/');
         if (item.type === 'tree') {
-          ensureFolderPathInTree(pathParts);
+          ensureFolderPathInTree(pathParts, githubRoot.children);
         } else if (item.type === 'blob') {
-          insertRemoteFileNodeByPath(pathParts, item);
+          insertRemoteFileNodeByPath(pathParts, item, githubRoot.children);
         }
       });
+
+      // Re-append user-created links after the remote content so the primary
+      // repository files keep their natural ordering.
+      githubRoot.children.push(...manualLinks);
 
       ensureNodeMetadata(treeData);
       saveTreeToLocal();
@@ -1364,10 +1389,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const items = await res.json();
         if (Array.isArray(items) && items.length > 0) {
           const newChildren = [];
+          const hfIgnoreRoot = ['.gitattributes', '.gitignore', '.gitmodules', '.README', 'README.md', 'LICENSE', '.nojekyll'];
           items.forEach(item => {
-            if (item.type === 'file' && !item.path.endsWith('/.keep')) {
+            const filename = item.path.split('/').pop() || '';
+            const isHiddenMeta = item.path.indexOf('/') === -1 && (hfIgnoreRoot.includes(filename) || filename.startsWith('.'));
+            if (item.type === 'file' && !item.path.endsWith('/.keep') && !isHiddenMeta) {
               const pathParts = item.path.split('/');
-              const filename = pathParts.pop();
+              pathParts.pop();
               const ext = (filename.split('.').pop() || 'txt').toLowerCase();
 
               insertFileIntoTreeByPathParts(newChildren, pathParts, {
@@ -1544,13 +1572,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return children;
   }
 
-  async function loadWebDAVDir(folderNode) {
+  async function loadWebDAVDir(folderNode, silent = false) {
     const cfg = getWebDAVConfig();
     if (!cfg.url) return false;
     const dirUrl = buildWebDAVFolderUrl(folderNode);
     const responses = await webdavPropfind(dirUrl);
     if (!responses || responses.length === 0) {
-      showToast('⚠️ WebDAV 目录刷新失败：浏览器跨域(CORS)限制或账号凭据无效，坚果云等 WebDAV 服务不支持浏览器直连，请改用本地代理或桌面客户端同步。');
+      if (!silent) {
+        showToast('⚠️ WebDAV 目录刷新失败：浏览器跨域(CORS)限制或账号凭据无效，坚果云等 WebDAV 服务不支持浏览器直连，请改用本地代理或桌面客户端同步。');
+      }
       return false;
     }
 
@@ -1572,7 +1602,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const webdavRoot = treeData ? treeData.find(n => n.id === 'root_webdav') : null;
     if (!webdavRoot) return false;
 
-    const didLoad = await loadWebDAVDir(webdavRoot);
+    const didLoad = await loadWebDAVDir(webdavRoot, true);
     if (didLoad) {
       webdavRoot.expanded = true;
       renderTree();
@@ -1581,8 +1611,8 @@ document.addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
-  function ensureFolderPathInTree(pathParts) {
-    let currentChildren = treeData;
+  function ensureFolderPathInTree(pathParts, baseChildren) {
+    let currentChildren = Array.isArray(baseChildren) ? baseChildren : treeData;
     for (let i = 0; i < pathParts.length; i++) {
       const folderName = pathParts[i];
       let folderNode = currentChildren.find(c => c.type === 'folder' && c.name === folderName);
@@ -1593,6 +1623,7 @@ document.addEventListener('DOMContentLoaded', () => {
           name: folderName,
           icon: 'fa-solid fa-folder',
           expanded: true,
+          serverPath: pathParts.slice(0, i + 1).join('/'),
           children: []
         };
         currentChildren.push(folderNode);
@@ -1614,13 +1645,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
 
-  function insertRemoteFileNodeByPath(pathParts, item) {
+  function insertRemoteFileNodeByPath(pathParts, item, baseChildren) {
     const fileName = pathParts[pathParts.length - 1];
     const relUrl = item.path;
     const ext = (fileName.split('.').pop() || '').toLowerCase();
 
-    // Check if file already exists anywhere in treeData
-    let existingNode = findFileInTreeByPathOrName(treeData, fileName, relUrl);
+    // Check if file already exists within the GitHub subtree (scoped to baseChildren,
+    // so files in Hugging Face / WebDAV roots with the same name are never mistaken)
+    let existingNode = findFileInTreeByPathOrName(Array.isArray(baseChildren) ? baseChildren : treeData, fileName, relUrl);
     if (existingNode) {
       existingNode.url = relUrl;
       if (item.size) {
@@ -1629,7 +1661,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    let currentChildren = treeData;
+    let currentChildren = Array.isArray(baseChildren) ? baseChildren : treeData;
     for (let i = 0; i < pathParts.length - 1; i++) {
       const folderName = pathParts[i];
       let folderNode = currentChildren.find(c => c.type === 'folder' && c.name === folderName);
@@ -1640,6 +1672,7 @@ document.addEventListener('DOMContentLoaded', () => {
           name: folderName,
           icon: 'fa-solid fa-folder',
           expanded: true,
+          serverPath: pathParts.slice(0, i + 1).join('/'),
           children: []
         };
         currentChildren.push(folderNode);
@@ -1654,27 +1687,35 @@ document.addEventListener('DOMContentLoaded', () => {
       ext: ext,
       desc: `从 GitHub 仓库动态同步`,
       size: item.size ? (item.size > 1024 * 1024 ? (item.size / (1024 * 1024)).toFixed(2) + ' MB' : (item.size / 1024).toFixed(1) + ' KB') : '已检索',
-      url: relUrl
+      url: relUrl,
+      serverPath: item.path
     };
     currentChildren.push(newFileNode);
   }
 
   async function handleGlobalRefresh() {
     globalRefreshBtn.querySelector('i').classList.add('fa-spin');
-    
-    // Clear stale cached local tree to force full fresh sync from GitHub Trees API
-    localStorage.removeItem('ys_tree_data');
-    
-    const synced = await syncGitHubRepositoryTree();
-    await loadData();
+
+    // Re-sync remote trees from each backend. Manually created nodes (links /
+    // local folders) are preserved by the sync functions; only remote-derived
+    // (git_*/hf_*/webdav_*) nodes are rebuilt to mirror the live backends.
+    const syncedG = await syncGitHubRepositoryTree();
+    const syncedH = await syncHuggingFaceRepositoryTree();
+    const syncedW = await syncWebDAVRepositoryTree();
+
+    ensureNodeMetadata(treeData);
+    saveTreeToLocal();
     renderTree();
+
+    let count = 0;
+    if (siteConfig && siteConfig.hf_repo) count++;
+    if (siteConfig && siteConfig.webdav_url) count++;
+
     setTimeout(() => {
       globalRefreshBtn.querySelector('i').classList.remove('fa-spin');
-      if (synced) {
-        showToast('目录已从 GitHub 仓库成功全量读取并重新索引！');
-      } else {
-        showToast('目录与网盘数据已成功刷新！');
-      }
+      const ghTxt = syncedG ? 'GitHub' : '';
+      const parts = [ghTxt, count > 0 ? count + ' 个挂载源' : ''].filter(Boolean);
+      showToast(`目录已从 ${parts.join(' + ')} 全量刷新！`);
     }, 300);
   }
 
@@ -2143,7 +2184,15 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       if (folderId === 'root') {
-        treeData.push(newLinkNode);
+        // Top-level links belong to the primary GitHub mirror root so they are
+        // not treated as stray top-level nodes and survive refreshes.
+        const githubRoot = (treeData || []).find(n => n.id === 'root_github');
+        if (githubRoot) {
+          if (!githubRoot.children) githubRoot.children = [];
+          githubRoot.children.push(newLinkNode);
+        } else {
+          treeData.push(newLinkNode);
+        }
       } else {
         const folder = findNodeById(treeData, folderId);
         if (folder) {
@@ -2230,7 +2279,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (folderId === 'root') {
-        treeData.push(newFile);
+        const githubRoot = (treeData || []).find(n => n.id === 'root_github');
+        if (githubRoot) {
+          if (!githubRoot.children) githubRoot.children = [];
+          githubRoot.children.push(newFile);
+        } else {
+          treeData.push(newFile);
+        }
       } else {
         const folder = findNodeById(treeData, folderId);
         if (folder) {
@@ -3043,6 +3098,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    if (nodeProvider === 'github' && fileNode.url) {
+      try {
+        const cdnPrefix = (siteConfig && siteConfig.cdn_prefix) || 'https://cdn.jsdelivr.net/gh/eyeoko/ghdisk@main/';
+        const fullUrl = fileNode.url.startsWith('http') ? fileNode.url : cdnPrefix + fileNode.url.replace(/^\//, '');
+        const res = await fetch(fullUrl, { headers: { 'Accept': '*/*' } });
+        if (!res.ok) {
+          showToast(`⚠️ GitHub 文件下载失败（HTTP ${res.status}，CDN 同步可能延迟）。`);
+          return;
+        }
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileNode.name;
+        a.click();
+        showToast(`已下载 ${fileNode.name}（${(blob.size / 1024).toFixed(1)} KB）`);
+        return;
+      } catch (err) {
+        console.warn('GitHub download failed:', err);
+        showToast('⚠️ GitHub 文件下载失败（网络错误）。');
+        return;
+      }
+    }
+
     if (nodeProvider === 'webdav' && fileNode.url) {
       try {
         const res = await webdavFetch(encodeURI(fileNode.url), { headers: getWebDAVHeaders({ 'Accept': '*/*' }) });
@@ -3189,7 +3267,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (parentId === 'root') {
-      treeData.push(newFolder);
+      const githubRoot = (treeData || []).find(n => n.id === 'root_github');
+      if (githubRoot) {
+        if (!githubRoot.children) githubRoot.children = [];
+        githubRoot.children.push(newFolder);
+      } else {
+        treeData.push(newFolder);
+      }
     } else {
       const parent = findNodeById(treeData, parentId);
       if (parent) {
@@ -3270,7 +3354,13 @@ document.addEventListener('DOMContentLoaded', () => {
     nodesToMove.forEach(node => removeNodeById(treeData, node.id));
 
     if (targetFolderId === 'root') {
-      nodesToMove.forEach(node => treeData.push(node));
+      const githubRoot = (treeData || []).find(n => n.id === 'root_github');
+      if (githubRoot) {
+        if (!githubRoot.children) githubRoot.children = [];
+        nodesToMove.forEach(node => githubRoot.children.push(node));
+      } else {
+        nodesToMove.forEach(node => treeData.push(node));
+      }
     } else {
       const targetFolder = findNodeById(treeData, targetFolderId);
       if (targetFolder) {
