@@ -44,24 +44,24 @@
 
         <!-- Refresh Button -->
         <button id="global-refresh-btn" class="btn btn-sm btn-outline" title="刷新目录与网盘数据">
-          <i class="fa-solid fa-arrows-rotate"></i> 刷新
+          <i class="fa-solid fa-arrows-rotate"></i><span class="btn-label">刷新</span>
         </button>
         <!-- Permission Mode Lock Toggle Button -->
         <button id="admin-lock-btn" class="btn btn-sm btn-warning" title="点击解锁管理员模式进行编辑">
-          <i class="fa-solid fa-lock"></i> <span id="lock-btn-text">游客模式 (点击解锁)</span>
+          <i class="fa-solid fa-lock"></i> <span id="lock-btn-text" class="btn-label">解锁</span>
         </button>
 
         <!-- Always Visible Admin Settings Button (Prompts for password if locked) -->
         <button id="open-admin-settings-btn" class="btn btn-sm btn-outline" title="后台控制面板与存储源设置">
-          <i class="fa-solid fa-gears obsidian-purple"></i> 后台定制
+          <i class="fa-solid fa-gears obsidian-purple"></i><span class="btn-label">后台定制</span>
         </button>
 
         <!-- Admin Only Action Buttons -->
         <button id="open-upload-btn" class="btn btn-sm btn-primary admin-only" title="上传本地文件或整个文件夹">
-          <i class="fa-solid fa-cloud-arrow-up"></i> 上传资源
+          <i class="fa-solid fa-cloud-arrow-up"></i><span class="btn-label">上传</span>
         </button>
         <button id="open-recycle-bin-btn" class="btn btn-sm btn-outline admin-only" title="回收站（保存2个月）">
-          <i class="fa-solid fa-trash-arrow-up"></i> 回收站 <span id="recycle-count-badge" class="badge-count">0</span>
+          <i class="fa-solid fa-trash-arrow-up"></i><span class="btn-label">回收站</span> <span id="recycle-count-badge" class="badge-count">0</span>
         </button>
         
         <button id="theme-toggle-btn" class="btn btn-sm btn-outline" title="切换主题"><i class="fa-solid fa-sun"></i></button>
@@ -84,7 +84,7 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="sidebar-title">
-          <i class="fa-solid fa-cubes-stacked"></i> 资源管理器目录
+          <i class="fa-solid fa-cubes-stacked"></i> 资源目录
         </div>
         <div class="sidebar-actions">
           <button id="add-folder-btn" class="icon-btn admin-only" title="新建目录"><i class="fa-solid fa-folder-plus"></i></button>
@@ -166,17 +166,17 @@
           <div class="editor-actions">
             <!-- View Mode Switcher for Markdown -->
             <div id="md-view-switch" class="btn-group-sm" style="display: none;">
-              <button id="mode-render-btn" class="btn btn-xs btn-primary"><i class="fa-solid fa-eye"></i> 渲染预览</button>
-              <button id="mode-edit-btn" class="btn btn-xs btn-outline"><i class="fa-solid fa-code"></i> 编辑代码</button>
+              <button id="mode-render-btn" class="btn btn-xs btn-primary"><i class="fa-solid fa-eye"></i><span class="btn-label">预览</span></button>
+              <button id="mode-edit-btn" class="btn btn-xs btn-outline"><i class="fa-solid fa-code"></i><span class="btn-label">编辑</span></button>
             </div>
 
             <span id="save-status-badge" class="status-badge clean"><i class="fa-solid fa-circle-check"></i> 只读预览</span>
-            <button id="refresh-file-btn" class="btn btn-sm btn-outline" title="重新读取刷新当前文件"><i class="fa-solid fa-arrows-rotate"></i> 刷新</button>
-            <button id="copy-code-btn" class="btn btn-sm btn-outline" title="一键复制当前文件代码"><i class="fa-regular fa-copy"></i> 复制内容</button>
-            <button id="paste-code-btn" class="btn btn-sm btn-outline admin-only" title="从剪贴板粘贴代码到编辑器"><i class="fa-solid fa-paste"></i> 粘贴内容</button>
-            <button id="show-properties-btn" class="btn btn-sm btn-outline"><i class="fa-solid fa-circle-info"></i> 属性与直链</button>
-            <button id="save-file-btn" class="btn btn-sm btn-primary admin-only"><i class="fa-solid fa-floppy-disk"></i> 保存修改</button>
-            <button id="download-file-btn" class="btn btn-sm btn-outline"><i class="fa-solid fa-download"></i> 下载文件</button>
+            <button id="refresh-file-btn" class="btn btn-sm btn-outline" title="重新读取刷新当前文件"><i class="fa-solid fa-arrows-rotate"></i></button>
+            <button id="copy-code-btn" class="btn btn-sm btn-outline" title="一键复制当前文件代码"><i class="fa-regular fa-copy"></i><span class="btn-label">复制</span></button>
+            <button id="paste-code-btn" class="btn btn-sm btn-outline admin-only" title="从剪贴板粘贴代码到编辑器"><i class="fa-solid fa-paste"></i></button>
+            <button id="show-properties-btn" class="btn btn-sm btn-outline" title="属性与直链"><i class="fa-solid fa-circle-info"></i><span class="btn-label">属性</span></button>
+            <button id="save-file-btn" class="btn btn-sm btn-primary admin-only"><i class="fa-solid fa-floppy-disk"></i><span class="btn-label">保存</span></button>
+            <button id="download-file-btn" class="btn btn-sm btn-outline" title="下载当前文件"><i class="fa-solid fa-download"></i><span class="btn-label">下载</span></button>
           </div>
         </div>
 
@@ -239,7 +239,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline modal-close">取消</button>
-        <button id="confirm-unlock-btn" class="btn btn-primary"><i class="fa-solid fa-key"></i> 验证解锁</button>
+        <button id="confirm-unlock-btn" class="btn btn-primary"><i class="fa-solid fa-key"></i> 解锁</button>
       </div>
     </div>
   </div>
@@ -253,8 +253,8 @@
       </div>
       <div class="modal-body">
         <div class="modal-tabs">
-          <button id="tab-upload-files" class="modal-tab-btn active"><i class="fa-solid fa-file-arrow-up"></i> 上传文件 (单/多文件)</button>
-          <button id="tab-upload-folder" class="modal-tab-btn"><i class="fa-solid fa-folder-arrow-up"></i> 上传整个文件夹/目录</button>
+          <button id="tab-upload-files" class="modal-tab-btn active"><i class="fa-solid fa-file-arrow-up"></i> 上传文件</button>
+          <button id="tab-upload-folder" class="modal-tab-btn"><i class="fa-solid fa-folder-arrow-up"></i> 上传文件夹</button>
         </div>
 
         <div class="form-group">
@@ -286,7 +286,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline modal-close">取消</button>
-        <button id="confirm-upload-file-btn" class="btn btn-primary" disabled><i class="fa-solid fa-upload"></i> 确认解析并上传</button>
+        <button id="confirm-upload-file-btn" class="btn btn-primary" disabled><i class="fa-solid fa-upload"></i> 确认上传</button>
       </div>
     </div>
   </div>
@@ -301,7 +301,7 @@
       <div class="modal-body">
         <div class="modal-tabs">
           <button id="tab-type-file" class="modal-tab-btn active"><i class="fa-solid fa-file"></i> 新建文件</button>
-          <button id="tab-type-link" class="modal-tab-btn"><i class="fa-solid fa-link"></i> 新建网络链接/网盘跳转</button>
+          <button id="tab-type-link" class="modal-tab-btn"><i class="fa-solid fa-link"></i> 新建链接</button>
         </div>
 
         <div class="form-group">
@@ -352,7 +352,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline modal-close">取消</button>
-        <button id="confirm-create-file-btn" class="btn btn-primary">立即创建</button>
+        <button id="confirm-create-file-btn" class="btn btn-primary">创建</button>
       </div>
     </div>
   </div>
@@ -479,13 +479,13 @@
           <h4 style="font-size:0.85rem; color:var(--primary-color); margin-bottom:0.6rem;"><i class="fa-solid fa-arrows-split-up-and-left"></i> 数据迁移与整盘导入导出控制</h4>
           <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.4rem;">
             <button id="open-ys-migration-btn" class="btn btn-sm btn-outline" type="button" title="打开永硕E盘(ys168)一键数据迁移助手">
-              <i class="fa-solid fa-file-import obsidian-yellow"></i> 永硕 E 盘 (YS168) 迁移助手
+              <i class="fa-solid fa-file-import obsidian-yellow"></i> 永硕迁移
             </button>
             <button id="export-config-btn" class="btn btn-sm btn-outline" type="button" title="导出当前网盘配置与目录树到文件">
-              <i class="fa-solid fa-file-export obsidian-green"></i> 导出配置文件 (data.json)
+              <i class="fa-solid fa-file-export obsidian-green"></i> 导出配置
             </button>
             <button id="import-config-btn" class="btn btn-sm btn-outline" type="button" title="从外部 data.json 导入网盘配置与目录树">
-              <i class="fa-solid fa-file-import obsidian-purple"></i> 导入配置文件 (data.json)
+              <i class="fa-solid fa-file-import obsidian-purple"></i> 导入配置
             </button>
           </div>
           <input type="file" id="import-config-file-input" accept=".json" style="display: none;">
@@ -494,7 +494,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline modal-close">取消</button>
-        <button id="save-settings-btn" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> 保存存储源与站点设置</button>
+        <button id="save-settings-btn" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> 保存设置</button>
       </div>
     </div>
   </div>
@@ -509,13 +509,13 @@
       <div class="modal-body">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
           <span style="font-size:0.85rem; color:var(--text-secondary);">提示：放入回收站的文件和目录将自动保留 60 天（2个月），期满前随时可以恢复。</span>
-          <button id="empty-trash-btn" class="btn btn-xs btn-danger"><i class="fa-solid fa-broom"></i> 清空回收站</button>
+          <button id="empty-trash-btn" class="btn btn-xs btn-danger"><i class="fa-solid fa-broom"></i> 清空</button>
         </div>
 
         <div class="recycle-list-container" id="recycle-list-container"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-primary btn-sm modal-close">关闭回收站</button>
+        <button class="btn btn-primary btn-sm modal-close">关闭</button>
       </div>
     </div>
   </div>
@@ -630,7 +630,7 @@
         </table>
       </div>
       <div class="modal-footer">
-        <a id="prop-download-btn" href="#" target="_blank" class="btn btn-primary btn-sm"><i class="fa-solid fa-download"></i> 立即下载该文件</a>
+        <a id="prop-download-btn" href="#" target="_blank" class="btn btn-primary btn-sm"><i class="fa-solid fa-download"></i> 下载</a>
         <button class="btn btn-outline btn-sm modal-close">关闭</button>
       </div>
     </div>
@@ -661,7 +661,7 @@
             </div>
             <p class="backend-desc">原生 GitHub REST API + Raw CDN 动态全量索引。支持文件自动 Commit 提交与存储。</p>
             <div class="backend-actions">
-              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="github"><i class="fa-solid fa-plug"></i> 真实连通测试</button>
+              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="github"><i class="fa-solid fa-plug"></i> 连通测试</button>
             </div>
           </div>
 
@@ -677,7 +677,7 @@
             </div>
             <p class="backend-desc">挂载 Hugging Face Dataset / Models 仓库。支持模型权重与数据集文件在线拉取与预览。</p>
             <div class="backend-actions">
-              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="huggingface"><i class="fa-solid fa-plug"></i> 真实连通测试</button>
+              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="huggingface"><i class="fa-solid fa-plug"></i> 连通测试</button>
             </div>
           </div>
 
@@ -693,7 +693,7 @@
             </div>
             <p class="backend-desc">标准 WebDAV 协议。无缝对接坚果云、Nextcloud、ownCloud 或 NAS 服务器。</p>
             <div class="backend-actions">
-              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="webdav"><i class="fa-solid fa-plug"></i> 真实连通测试</button>
+              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="webdav"><i class="fa-solid fa-plug"></i> 连通测试</button>
             </div>
           </div>
 
@@ -709,14 +709,14 @@
             </div>
             <p class="backend-desc">纯浏览器本地 IndexedDB 离线隔离存储。零网络依赖，数据仅保存在本机。</p>
             <div class="backend-actions">
-              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="local"><i class="fa-solid fa-plug"></i> 真实连通测试</button>
+              <button class="btn btn-xs btn-primary test-backend-btn" data-backend="local"><i class="fa-solid fa-plug"></i> 连通测试</button>
             </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline btn-sm modal-close">关闭</button>
-        <button class="btn btn-primary btn-sm" id="open-config-from-switcher"><i class="fa-solid fa-sliders"></i> 配置各源 Key / 域名</button>
+        <button class="btn btn-primary btn-sm" id="open-config-from-switcher"><i class="fa-solid fa-sliders"></i> 配置各源</button>
       </div>
     </div>
   </div>
@@ -791,7 +791,7 @@
 
       <div class="modal-footer">
         <button class="btn btn-outline modal-close">取消</button>
-        <button id="ys-start-migration-btn" class="btn btn-primary"><i class="fa-solid fa-bolt"></i> 开始解析并一键迁移</button>
+        <button id="ys-start-migration-btn" class="btn btn-primary"><i class="fa-solid fa-bolt"></i> 开始迁移</button>
       </div>
     </div>
   </div>

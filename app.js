@@ -1035,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
     selectedFileInfo.style.display = 'none';
 
     confirmUploadFileBtn.disabled = false;
-    confirmUploadFileBtn.innerHTML = '<i class="fa-solid fa-upload"></i> 确认解析并上传';
+    confirmUploadFileBtn.innerHTML = '<i class="fa-solid fa-upload"></i> 确认上传';
 
     closeAllModals();
     if (uploadToWebDAV && webdavFail) {
@@ -1702,7 +1702,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.classList.add('mode-admin');
 
       adminLockBtn.className = 'btn btn-sm btn-primary';
-      adminLockBtn.innerHTML = '<i class="fa-solid fa-lock-open"></i> <span id="lock-btn-text">已解锁管理 (点击加锁)</span>';
+      adminLockBtn.innerHTML = '<i class="fa-solid fa-lock-open"></i> <span id="lock-btn-text" class="btn-label">已解锁</span>';
       
       codeTextarea.readOnly = false;
       statusModeLabel.innerHTML = '<i class="fa-solid fa-lock-open obsidian-green"></i> 管理员编辑模式';
@@ -1715,7 +1715,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.classList.add('mode-readonly');
 
       adminLockBtn.className = 'btn btn-sm btn-warning';
-      adminLockBtn.innerHTML = '<i class="fa-solid fa-lock"></i> <span id="lock-btn-text">游客模式 (点击解锁)</span>';
+      adminLockBtn.innerHTML = '<i class="fa-solid fa-lock"></i> <span id="lock-btn-text" class="btn-label">解锁</span>';
       
       codeTextarea.readOnly = true;
       statusModeLabel.innerHTML = '<i class="fa-solid fa-lock obsidian-yellow"></i> 游客只读模式';
@@ -2840,7 +2840,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (belongsToGitHub && activeToken) {
       saveFileBtn.disabled = true;
-      saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在提交至 GitHub...';
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="btn-label">提交中...</span>';
 
       const base64Content = btoa(unescape(encodeURIComponent(newContent)));
       let targetPath = fileNode.name;
@@ -2850,7 +2850,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const resUrl = await uploadFileToGitHub(targetPath, base64Content);
       saveFileBtn.disabled = false;
-      saveFileBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 保存文件';
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i><span class="btn-label">保存</span>';
 
       if (resUrl) {
         fileNode.url = resUrl;
@@ -2861,7 +2861,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Write back to WebDAV server via PUT if the file belongs to the WebDAV backend
     if (nodeProvider === 'webdav') {
       saveFileBtn.disabled = true;
-      saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在写入 WebDAV...';
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="btn-label">写入中...</span>';
 
       let targetUrl = fileNode.url;
       if (!targetUrl || targetUrl.startsWith('data:')) {
@@ -2882,7 +2882,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       saveFileBtn.disabled = false;
-      saveFileBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 保存文件';
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i><span class="btn-label">保存</span>';
 
       if (putRes && (putRes.ok || putRes.status === 201 || putRes.status === 204)) {
         fileNode.url = targetUrl;
@@ -2899,14 +2899,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let hfUploaded = false;
     if (nodeProvider === 'huggingface') {
       saveFileBtn.disabled = true;
-      saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在写入 Hugging Face...';
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="btn-label">写入中...</span>';
 
       let targetPath = fileNode.serverPath || fileNode.name;
       const base64Content = btoa(unescape(encodeURIComponent(newContent)));
       const ok = await uploadFileToHuggingFace(targetPath, base64Content, `Update ${targetPath}`);
 
       saveFileBtn.disabled = false;
-      saveFileBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 保存文件';
+      saveFileBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i><span class="btn-label">保存</span>';
 
       if (ok) {
         fileNode.url = buildHuggingFaceResolveUrl(targetPath);
@@ -3404,7 +3404,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!rawInput) {
           if (ysLogContent) ysLogContent.innerHTML += '❌ 错误: 请输入有效的永硕 E 盘空间网址或名称！<br>';
           ysStartMigrationBtn.disabled = false;
-          ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始解析并一键迁移';
+          ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始迁移';
           return;
         }
 
@@ -3443,7 +3443,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!pasteContent) {
           if (ysLogContent) ysLogContent.innerHTML += '❌ 错误: 请在文本框中粘贴永硕 E 盘 HTML 源码或目录文本！<br>';
           ysStartMigrationBtn.disabled = false;
-          ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始解析并一键迁移';
+          ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始迁移';
           return;
         }
 
@@ -3457,7 +3457,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!ysSelectedFileContent) {
           if (ysLogContent) ysLogContent.innerHTML += '❌ 错误: 请先选择有效的永硕 E 盘备份文件！<br>';
           ysStartMigrationBtn.disabled = false;
-          ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始解析并一键迁移';
+          ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始迁移';
           return;
         }
 
@@ -3503,13 +3503,13 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         closeAllModals();
         ysStartMigrationBtn.disabled = false;
-        ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始解析并一键迁移';
+        ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始迁移';
       }, 1200);
 
     } catch (err) {
       if (ysLogContent) ysLogContent.innerHTML += `❌ 迁移解析过程发生异常: ${err.message}<br>`;
       ysStartMigrationBtn.disabled = false;
-      ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始解析并一键迁移';
+      ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始迁移';
     }
   }
 
