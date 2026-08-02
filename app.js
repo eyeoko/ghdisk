@@ -2219,6 +2219,8 @@ document.addEventListener('DOMContentLoaded', () => {
       let webdavFileUrl = '';
       let hfCreated = false;
       let hfFileUrl = '';
+      let githubCreated = false;
+      let githubFileUrl = '';
       if (isWebDAVTarget && webdavFolderUrl) {
         const putTarget = webdavFolderUrl.replace(/\/$/, '') + '/' + encodeURIComponent(fileName);
         const content = `# ${fileName}\n# 创建时间: ${now}\n\n`;
@@ -2257,6 +2259,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
+      if (targetProvider === 'github' && (folderId === 'root' || targetFolderNode)) {
+        const parentPath = targetFolderNode && targetFolderNode.serverPath ? targetFolderNode.serverPath.replace(/\/$/, '') : '';
+        const effectivePath = parentPath ? parentPath + '/' : '';
+        const content = `# ${fileName}\n# 创建时间: ${now}\n\n`;
+        const base64Content = btoa(unescape(encodeURIComponent(content)));
+        const token = getActiveGitHubToken();
+        if (token) {
+          const url = await uploadFileToGitHub(effectivePath + fileName, base64Content);
+          if (url) {
+            githubCreated = true;
+            githubFileUrl = url;
+          }
+        }
+      }
+
       const newFile = {
         id: 'file_' + Date.now(),
         type: 'file',
@@ -2266,9 +2283,14 @@ document.addEventListener('DOMContentLoaded', () => {
         createdAt: now,
         updatedAt: now,
         size: '0 Bytes',
-        url: hfFileUrl || webdavFileUrl || `files/${fileName}`,
+        url: hfFileUrl || githubFileUrl || webdavFileUrl || `files/${fileName}`,
         content: `# ${fileName}\n# 创建时间: ${now}\n\n`
       };
+      if (githubCreated) {
+        const parentPath = targetFolderNode && targetFolderNode.serverPath ? targetFolderNode.serverPath.replace(/\/$/, '') : '';
+        newFile.serverPath = (parentPath ? parentPath + '/' : '') + fileName;
+        newFile.storageProvider = 'github';
+      }
       if (webdavCreated) {
         const parentPath = targetFolderNode && targetFolderNode.serverPath ? targetFolderNode.serverPath.replace(/\/$/, '') : '';
         newFile.serverPath = (parentPath ? parentPath + '/' : '') + fileName;
@@ -2300,7 +2322,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderTree();
       openFileInEditor(newFile);
       closeAllModals();
-      showToast(`文件「${fileName}」创建成功！${webdavCreated ? '（已写入 WebDAV 云盘）' : ''}${hfCreated ? '（已写入 Hugging Face 仓库）' : ''}`);
+      showToast(`文件「${fileName}」创建成功！${webdavCreated ? '（已写入 WebDAV 云盘）' : ''}${hfCreated ? '（已写入 Hugging Face 仓库）' : ''}${githubCreated ? '（已写入 GitHub 仓库）' : ''}`);
     }
   }
 
@@ -3210,6 +3232,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let newFolderServerPath = '';
     let mkcolOk = true;
     let hfFolderCreated = false;
+    let githubFolderCreated = false;
 
     if (parentProvider === 'webdav') {
       const baseFolderUrl = buildWebDAVFolderUrl(parentNode || (treeData.find(n => n.id === 'root_webdav') || null));
@@ -3248,6 +3271,22 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    if (parentProvider === 'github' && (parentId === 'root' || parentNode)) {
+      const parentPath = parentNode && parentNode.serverPath ? parentNode.serverPath.replace(/\/$/, '') : '';
+      const folderPath = (parentPath ? parentPath + '/' : '') + name;
+      newFolderServerPath = folderPath + '/';
+      const token = getActiveGitHubToken();
+      if (token) {
+        const ok = await uploadFileToGitHub(folderPath + '/.gitkeep', btoa(''));
+        if (ok) {
+          githubFolderCreated = true;
+        } else {
+          alert('GitHub 目录创建失败，请检查 Token 与仓库权限。');
+          return;
+        }
+      }
+    }
+
     const newFolder = {
       id: 'folder_' + Date.now(),
       type: 'folder',
@@ -3264,6 +3303,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (parentProvider === 'huggingface') {
       newFolder.serverPath = newFolderServerPath;
+    }
+    if (parentProvider === 'github') {
+      newFolder.serverPath = newFolderServerPath;
+      newFolder.storageProvider = 'github';
     }
 
     if (parentId === 'root') {
@@ -3287,7 +3330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveTreeToLocal();
     renderTree();
     closeAllModals();
-    showToast(`目录「${name}」创建成功！${mkcolOk && parentProvider === 'webdav' ? '（已写入 WebDAV 云盘）' : ''}${hfFolderCreated ? '（已写入 Hugging Face 仓库）' : ''}`);
+    showToast(`目录「${name}」创建成功！${mkcolOk && parentProvider === 'webdav' ? '（已写入 WebDAV 云盘）' : ''}${hfFolderCreated ? '（已写入 Hugging Face 仓库）' : ''}${githubFolderCreated ? '（已写入 GitHub 仓库）' : ''}`);
   }
 
   function openNewFileModal() {
