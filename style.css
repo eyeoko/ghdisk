@@ -137,6 +137,17 @@ body {
   justify-content: center;
   font-size: 1.15rem;
   box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
+  overflow: hidden;
+}
+
+.brand-logo.obsidian-logo.brand-logo-img {
+  background: transparent;
+  box-shadow: none;
+}
+.brand-logo.obsidian-logo.brand-logo-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .brand-info h1 {

@@ -160,6 +160,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingSiteNotice = document.getElementById('setting-site-notice');
   const settingAdminPassword = document.getElementById('setting-admin-password');
   const settingSiteLogo = document.getElementById('setting-site-logo');
+  const settingLogoUpload = document.getElementById('setting-site-logo-upload');
+  const settingLogoPreview = document.getElementById('setting-logo-preview');
+  const settingLogoPreviewImg = document.getElementById('setting-logo-preview-img');
+  const settingLogoClear = document.getElementById('setting-logo-clear');
   const settingRepoUrl = document.getElementById('setting-repo-url');
   const settingCdnPresetSelect = document.getElementById('setting-cdn-preset-select');
   const settingCdnPrefix = document.getElementById('setting-cdn-prefix');
@@ -292,6 +296,29 @@ document.addEventListener('DOMContentLoaded', () => {
   openUploadBtn.addEventListener('click', openUploadModal);
   openAdminSettingsBtn.addEventListener('click', openAdminSettingsModal);
   saveSettingsBtn.addEventListener('click', saveAdminSettings);
+
+  // Custom logo upload + preview
+  if (settingLogoUpload) {
+    settingLogoUpload.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        window.__pendingLogoData = ev.target.result;
+        settingLogoPreviewImg.src = ev.target.result;
+        settingLogoPreview.style.display = 'flex';
+        settingSiteLogo.value = 'fa_icon'; // image takes priority
+      };
+      reader.readAsDataURL(file);
+    });
+    settingLogoClear.addEventListener('click', () => {
+      settingLogoUpload.value = '';
+      window.__pendingLogoData = null;
+      window.__pendingLogoClear = true;
+      settingLogoPreview.style.display = 'none';
+      try { settingLogoPreviewImg.src = ''; } catch(e){}
+    });
+  }
 
   themeModeBtns.forEach(btn => btn.addEventListener('click', () => setThemeMode(btn.dataset.mode)));
   themePaletteGrid.addEventListener('click', (e) => {
@@ -692,6 +719,16 @@ document.addEventListener('DOMContentLoaded', () => {
     settingSiteNotice.value = siteConfig.notice || '';
     settingAdminPassword.value = siteConfig.admin_password || 'admin';
     settingSiteLogo.value = siteConfig.logo_icon || 'fa-solid fa-gem';
+    window.__pendingLogoData = null;
+    window.__pendingLogoClear = false;
+    settingLogoUpload.value = '';
+    if (siteConfig.logo_data && siteConfig.logo_use_img) {
+      settingLogoPreviewImg.src = siteConfig.logo_data;
+      settingLogoPreview.style.display = 'flex';
+      settingSiteLogo.value = 'fa_icon';
+    } else {
+      settingLogoPreview.style.display = 'none';
+    }
     settingRepoUrl.value = siteConfig.repo_url || '';
     settingCdnPrefix.value = siteConfig.cdn_prefix || '';
 
@@ -724,6 +761,20 @@ document.addEventListener('DOMContentLoaded', () => {
     siteConfig.notice = settingSiteNotice.value.trim() || siteConfig.notice;
     siteConfig.admin_password = settingAdminPassword.value.trim() || siteConfig.admin_password || 'admin';
     siteConfig.logo_icon = settingSiteLogo.value;
+    // Custom logo image handling
+    if (window.__pendingLogoClear) {
+      delete siteConfig.logo_data;
+      siteConfig.logo_use_img = false;
+    } else if (window.__pendingLogoData) {
+      siteConfig.logo_data = window.__pendingLogoData;
+      siteConfig.logo_use_img = true;
+    }
+    // If only FA icon chosen (and no image), keep previous image but mark not-used
+    if (settingSiteLogo.value && settingSiteLogo.value !== 'fa_icon' && !window.__pendingLogoData) {
+      siteConfig.logo_use_img = false;
+    }
+    window.__pendingLogoData = null;
+    window.__pendingLogoClear = false;
     siteConfig.repo_url = settingRepoUrl.value.trim();
     siteConfig.cdn_prefix = settingCdnPrefix.value.trim();
 
@@ -2105,6 +2156,22 @@ document.addEventListener('DOMContentLoaded', () => {
     updateRecycleBadge();
   }
 
+  function updateFavicon() {
+    const favIcon = document.getElementById('dynamic-favicon');
+    if (!favIcon) return;
+    try {
+      if (siteConfig && siteConfig.logo_data && siteConfig.logo_use_img) {
+        favIcon.href = siteConfig.logo_data;
+        favIcon.type = 'image/png';
+      } else {
+        // Default fallback: draw the FA gem on an indigo tile
+        const svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236366f1'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='white'>◆</text></svg>";
+        favIcon.href = 'data:image/svg+xml,' + encodeURIComponent(svg).replace(/%20/g,' ');
+        favIcon.type = 'image/png';
+      }
+    } catch (e) { /* ignore favicon errors */ }
+  }
+
   function applySiteConfig() {
     if (!siteConfig) return;
     if (siteConfig.title) {
@@ -2119,9 +2186,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (siteConfig.notice) {
       siteNoticeText.textContent = siteConfig.notice;
     }
-    if (siteConfig.logo_icon) {
+    // Apply logo: uploaded image takes priority, else FontAwesome icon, else default gem
+    const logoData = siteConfig.logo_data; // data URL for uploaded custom logo
+    if (logoData && siteConfig.logo_use_img) {
+      siteLogoIcon.className = `brand-logo obsidian-logo brand-logo-img`;
+      siteLogoIcon.innerHTML = `<img src="${logoData}" alt="logo" style="width:100%;height:100%;object-fit:contain;">`;
+    } else {
+      const icon = siteConfig.logo_icon || 'fa-solid fa-gem';
       siteLogoIcon.className = `brand-logo obsidian-logo`;
-      siteLogoIcon.innerHTML = `<i class="${siteConfig.logo_icon}"></i>`;
+      siteLogoIcon.innerHTML = `<i class="${icon}"></i>`;
+    }
+    // Sync favicon (address bar icon) with the chosen logo
+    if (typeof updateFavicon === 'function') updateFavicon();
+
+    // Site title in browser tab
+    if (siteConfig.title) {
+      htmlTitle.textContent = siteConfig.title;
     }
 
     // Status Provider Tag
@@ -2629,7 +2709,7 @@ document.addEventListener('DOMContentLoaded', () => {
       folderItem.innerHTML = `
         <input type="checkbox" class="tree-checkbox" ${isChecked ? 'checked' : ''}>
         <i class="fa-solid fa-chevron-right tree-chevron ${isExpanded ? 'expanded' : ''}"></i>
-        <i class="${node.icon || 'fa-solid fa-folder'} tree-icon obsidian-yellow"></i>
+        <i class="${node.icon && !/obsidian-(green|yellow|purple|blue|cyan|orange|red|pink)/.test(node.icon) ? node.icon + ' obsidian-yellow' : (node.icon || 'fa-solid fa-folder')} tree-icon"></i>
         <span class="tree-label">${escapeHtml(node.name)}</span>
         <span class="tree-badge">${children.length}</span>
         
