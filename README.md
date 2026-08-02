@@ -1,4 +1,4 @@
-# Obsidian 风格 多源存储网盘系统 (GitHub Pages / Hugging Face / WebDAV / IndexedDB)
+# 🗂️ 简易个人多源网盘 (GitHub Pages / Hugging Face / WebDAV / IndexedDB)
 
 这是一个结合了 **多后端存储驱动支持（GitHub Pages / Hugging Face 模型数据集仓库 / WebDAV 坚果云云网盘 / IndexedDB 离线离线存储）**、**永硕 E 盘 (YS168) 一键数据全量迁移助手**、**自由自定义任意 CDN 加速节点 URL**、**本地整个文件夹/目录结构无损上传**、**文件与目录深拷贝复制与粘贴副本**、**多标签页无缝切换**、**剪贴板复制/粘贴与刷新**、**密码锁权限管理（游客只读保护/密码解锁管理）**、**Obsidian 紫晶图标风格**、**400+ 语种格式关联**、**配置与数据导入导出 (`data.json`)**、**2个月回收站超期自动清理** 的全功能静态网盘系统，免费托管部署于 **GitHub Pages** 上！
 
@@ -78,6 +78,23 @@ IndexedDB 的文件保存在 **您当前使用的 Web 浏览器存储目录** �
      - **WebDAV 用户名**：你的登录账号
      - **WebDAV 应用授权码**：坚果云后台生成的第三方应用密码。
   3. 保存后即可通过 WebDAV 协议进行云端同步！
+
+> ### ⚠️ 坚果云 (Jianguoyun) WebDAV 浏览器直连限制说明
+>
+> **坚果云的 WebDAV 服务器（`dav.jianguoyun.com`）不发送任何 `Access-Control-Allow-Origin` 跨域响应头，且对预检请求 `OPTIONS` 一律返回 `401`（强制要求 Basic 鉴权，而跨域预检不能携带鉴权头）。**
+>
+> 因此，**浏览器前端无法直接对坚果云执行目录列取（PROPFIND）、上传（PUT）、删除（DELETE）等 WebDAV 写操作**——这是坚果云服务端的硬性限制，任何第三方 CORS 代理（如 `corsproxy.io`、`allorigins`）均无法绕过（分别返回 403 / 500）。
+>
+> 本项目对此的兼容表现：
+> - **目录刷新/列取**：尝试直连失败后给出明确提示，不会静默失败。
+> - **文件保存 / 上传 / 新建 / 建目录**：本地 IndexedDB 保存仍正常；WebDAV 远端写入会提示"浏览器 CORS 限制"。
+>
+> **若要实现对坚果云 WebDAV 的真实读写，请改用以下任一方式：**
+> 1. 本地运行一个 **Node.js 代理服务**（无鉴权的本机服务，转发 WebDAV 请求到坚果云），再在前端配置该本地代理地址；
+> 2. 使用坚果云官方客户端 / 桌面同步盘进行文件同步；
+> 3. 若使用支持 CORS 的 WebDAV 服务（部分自建 Nextcloud / ownCloud 可通过反向代理开启跨域头），则可直接浏览器读写。
+
+> **注意**：**Nextcloud / ownCloud 等自建 WebDAV 服务**若配置了正确的 CORS 头，本项目已实现完整的 WebDAV 读写链路（带 Basic 鉴权的 GET 内容拉取、PUT 保存/上传/新建、MKCOL 建目录、递归子目录 PROPFIND 列取）。
 
 ### 4. 📥 永硕 E 盘 (YS168) 数据一键全量迁移助手
 - 点击顶栏 **`数据迁移/配置 ▾`** 或 **`永硕迁移`**，支持：
