@@ -76,7 +76,7 @@
   <div class="notice-bar" id="notice-bar-container">
     <div class="notice-content">
       <i class="fa-solid fa-bullhorn notice-icon obsidian-yellow"></i>
-      <span id="site-notice-text">📢 点击【后台定制】随时输入密码 admin 即可配置挂载 GitHub、Hugging Face 或 WebDAV 云存储！</span>
+      <span id="site-notice-text">点击【后台定制】随时输入密码 admin 即可配置挂载 GitHub、Hugging Face 或 WebDAV 云存储！</span>
     </div>
   </div>
 
@@ -318,7 +318,7 @@
             <input type="text" id="new-file-title" class="form-control" placeholder="例如：notes.md">
           </div>
           <div class="form-group">
-            <label>语种/格式后缀：</label>
+            <label>多种格式后缀：</label>
             <select id="new-file-type" class="form-control">
               <option value="md">Markdown 笔记 (.md)</option>
               <option value="py">Python 脚本 (.py)</option>
@@ -373,9 +373,9 @@
         <div class="form-group" style="background-color:var(--bg-card); padding:0.85rem; border-radius:var(--radius-md); border:1px solid var(--primary-color);">
           <label style="color:var(--primary-color); font-weight:700;"><i class="fa-solid fa-database"></i> 选择后端存储服务驱动 (Storage Provider)：</label>
           <select id="setting-storage-provider" class="form-control">
-            <option value="github">🐙 GitHub Pages / Raw (默认 GitHub 静态托管)</option>
+            <option value="github">GitHub Pages / Raw (默认 GitHub 静态托管)</option>
             <option value="huggingface">🤗 Hugging Face Hub (挂载模型/数据集仓库)</option>
-            <option value="webdav">📁 WebDAV 云存储服务 (坚果云 / Nextcloud / ownCloud)</option>
+            <option value="webdav">WebDAV 云存储服务 (坚果云 / Nextcloud / ownCloud)</option>
           </select>
         </div>
 
@@ -424,34 +424,34 @@
         </div>
 
         <div class="form-group">
-          <label>📌 站点标题 (Site Title)：</label>
+          <label>站点标题 (Site Title)：</label>
           <input type="text" id="setting-site-title" class="form-control" placeholder="输入网页大标题">
         </div>
         <div class="form-group">
-          <label>🏷️ 站点副标题/说明：</label>
+          <label>站点副标题/说明：</label>
           <input type="text" id="setting-site-subtitle" class="form-control" placeholder="输入副标题说明">
         </div>
         <div class="form-group">
-          <label>📢 顶部欢迎/公告语句：</label>
+          <label>顶部欢迎/公告语句：</label>
           <input type="text" id="setting-site-notice" class="form-control" placeholder="输入顶部公告栏内容">
         </div>
         <div class="form-group">
-          <label>🔑 修改管理员解锁密码：</label>
+          <label>🔑修改密码：</label>
           <input type="password" id="setting-admin-password" class="form-control" placeholder="默认密码为 admin">
         </div>
         <div class="form-group">
-            <label>💎 站点 Logo 图标 (FontAwesome 类名)：</label>
+            <label>站点 Logo 图标：</label>
             <select id="setting-site-logo" class="form-control">
-              <option value="fa_icon">🎨 使用上方 FontAwesome 图标</option>
-              <option value="fa-solid fa-gem">💎 紫晶宝石 (fa-gem)</option>
-              <option value="fa-solid fa-hard-drive">💾 硬盘 (fa-hard-drive)</option>
-              <option value="fa-solid fa-folder-tree">📁 目录树 (fa-folder-tree)</option>
-              <option value="fa-solid fa-cloud">☁️ 云网盘 (fa-cloud)</option>
-              <option value="fa-solid fa-rocket">🚀 极速火箭 (fa-rocket)</option>
+              <option value="fa_icon">使用上方 FontAwesome 图标</option>
+              <option value="fa-solid fa-gem">💎紫晶宝石 (fa-gem)</option>
+              <option value="fa-solid fa-hard-drive">💾硬盘 (fa-hard-drive)</option>
+              <option value="fa-solid fa-folder-tree">📁目录树 (fa-folder-tree)</option>
+              <option value="fa-solid fa-cloud">☁️云网盘 (fa-cloud)</option>
+              <option value="fa-solid fa-rocket">🚀极速火箭 (fa-rocket)</option>
             </select>
           </div>
           <div class="form-group">
-            <label>🖼️ 自定义 Logo 图片 / 地址栏图标 (favicon)：</label>
+            <label>自定义 Logo 图片/地址栏图标 (favicon)：</label>
             <input type="file" id="setting-site-logo-upload" accept="image/png,image/jpeg,image/svg+xml,image/x-icon,image/webp" class="form-control">
             <small style="opacity:0.7;">上传后点击「保存设置」生效，将同时作为浏览器地址栏图标。清除：点保存但留空上传则沿用图标。</small>
             <div id="setting-logo-preview" style="margin-top:8px; display:none; align-items:center; gap:10px;">
@@ -466,23 +466,23 @@
 
         <!-- CDN Prefix Settings with Custom Input -->
         <div class="form-group">
-          <label>🚀 CDN/加速站点节点预设：</label>
+          <label>🚀CDN/加速站点节点预设：</label>
           <select id="setting-cdn-preset-select" class="form-control">
             <option value="jsdelivr">jsDelivr CDN (国内推荐) - https://cdn.jsdelivr.net/gh/...</option>
             <option value="fastly">Fastly jsDelivr 镜像 - https://fastly.jsdelivr.net/gh/...</option>
             <option value="ghproxy">GHProxy 代理镜像 - https://ghproxy.net/https://raw.githubusercontent.com/...</option>
             <option value="github_raw">GitHub Raw 直连 - https://raw.githubusercontent.com/...</option>
-            <option value="custom">✏️ 自由自定义 CDN 加速节点 URL (输入任意镜像源/自建代理)</option>
+            <option value="custom">自由自定义 CDN 加速节点 URL (输入任意镜像源/自建代理)</option>
           </select>
         </div>
         <div class="form-group">
-          <label>🌐 自定义 CDN 加速站点节点前缀 URL：</label>
+          <label>🌐自定义 CDN 加速站点节点前缀 URL：</label>
           <input type="text" id="setting-cdn-prefix" class="form-control" placeholder="https://cdn.jsdelivr.net/gh/your-username/your-repo-name@main/">
           <small style="color:var(--text-muted);">例如自建代理: https://my-cdn-proxy.com/your-repo/main/</small>
         </div>
 
         <div class="form-group">
-          <label>⌛ 回收站自动保存时间：</label>
+          <label>⌛回收站自动保存时间：</label>
           <input type="number" id="setting-trash-retention" class="form-control" value="60" readonly>
           <small style="color:var(--text-muted);">自动保存 60 天（2个月），超期节点自动清理</small>
         </div>
@@ -690,7 +690,7 @@
   <div id="storage-switcher-modal" class="modal-overlay">
     <div class="modal-card" style="max-width: 580px;">
       <div class="modal-header">
-        <h3><i class="fa-solid fa-server obsidian-purple"></i> 多存储源控制台 (K-Vault 动态状态控制引擎)</h3>
+        <h3><i class="fa-solid fa-server obsidian-purple"></i> 多存储源控制台(K-Vault动态状态控制引擎)</h3>
         <button class="close-btn modal-close"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
@@ -737,11 +737,11 @@
               <div class="backend-title">
                 <span class="status-pulse-dot green" id="dot-webdav"></span>
                 <i class="fa-solid fa-cloud obsidian-cyan" style="font-size:1.1rem;"></i>
-                <strong>WebDAV 云盘挂载 (坚果云 / Nextcloud)</strong>
+                <strong>WebDAV 云盘挂载 </strong>
               </div>
               <span class="backend-status-badge green" id="badge-webdav">🟢 就绪</span>
             </div>
-            <p class="backend-desc">标准 WebDAV 协议。无缝对接坚果云、Nextcloud、ownCloud 或 NAS 服务器。</p>
+            <p class="backend-desc">标准 WebDAV 协议。无缝对接Nextcloud、ownCloud 或 NAS 服务器。</p>
             <div class="backend-actions">
               <button class="btn btn-xs btn-primary test-backend-btn" data-backend="webdav"><i class="fa-solid fa-plug"></i> 连通测试</button>
             </div>
