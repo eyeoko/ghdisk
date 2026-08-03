@@ -2,7 +2,7 @@
   "site": {
     "title": "简易个人多源网盘",
     "subtitle": "400+ 语种图标 · 支持 GitHub / Hugging Face 仓库 / WebDAV 挂载",
-    "notice": "📢 【多源存储支持】当前为游客只读模式，点击右上角【游客模式 (点击解锁)】输入密码 admin 即可配置挂载 GitHub、Hugging Face 或 WebDAV！",
+    "notice": "【多源存储支持】当前为游客只读模式，点击右上角【游客模式 (点击解锁)】输入密码 admin 即可配置挂载 GitHub、Hugging Face 或 WebDAV！",
     "logo_icon": "fa-solid fa-gem",
     "admin_password": "admin",
     "storage_provider": "github",
