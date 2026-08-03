@@ -4,8 +4,8 @@
 window.YS_DATA = {
   "site": {
     "title": "简易个人多源网盘",
-    "subtitle": "400+ 语种图标 · 支持 GitHub / Hugging Face 仓库 / WebDAV 挂载",
-    "notice": "📢 【多源存储支持】当前为游客只读模式，点击右上角【游客模式 (点击解锁)】输入密码 admin 即可配置挂载 GitHub、Hugging Face 或 WebDAV！",
+    "subtitle": "400+种图标 · 支持 GitHub / Hugging Face 仓库 / WebDAV 挂载",
+    "notice": "【多源存储支持】当前为游客只读模式，点击右上角【游客模式 (点击解锁)】输入密码 admin 即可配置挂载 GitHub、Hugging Face 或 WebDAV！",
     "logo_icon": "fa-solid fa-gem",
     "admin_password": "admin",
     "storage_provider": "github",
@@ -26,7 +26,7 @@ window.YS_DATA = {
     {
       "id": "cat_docs",
       "type": "folder",
-      "name": "🔮 1. Obsidian 知识库与 Markdown 笔记",
+      "name": "1. Obsidian 知识库与 Markdown 笔记",
       "icon": "fa-solid fa-gem",
       "expanded": true,
       "children": [
@@ -46,7 +46,7 @@ window.YS_DATA = {
     {
       "id": "cat_code",
       "type": "folder",
-      "name": "⚡ 2. 400+ 语种代码与多格式脚本测试",
+      "name": "⚡ 2. 400+ 种代码与多格式脚本测试",
       "icon": "fa-solid fa-code",
       "expanded": true,
       "children": [
