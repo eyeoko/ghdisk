@@ -2566,7 +2566,7 @@ document.addEventListener('DOMContentLoaded', () => {
       githubRoot = {
         id: 'root_github',
         type: 'folder',
-        name: '🐙 GitHub Pages / Raw 仓库 [云端主库]',
+        name: 'GitHub Pages / Raw 仓库 [云端主库]',
         icon: 'fa-brands fa-github obsidian-green',
         storageProvider: 'github',
         expanded: true,
@@ -2574,7 +2574,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       tree = [githubRoot];
     } else {
-      githubRoot.name = '🐙 GitHub Pages / Raw 仓库 [云端主库]';
+      githubRoot.name = 'GitHub Pages / Raw 仓库 [云端主库]';
       githubRoot.icon = 'fa-brands fa-github obsidian-green';
       githubRoot.storageProvider = 'github';
     }
@@ -2614,7 +2614,7 @@ document.addEventListener('DOMContentLoaded', () => {
       webdavRoot = {
         id: 'root_webdav',
         type: 'folder',
-        name: '☁️ WebDAV 统一云存储 [坚果云/Nextcloud]',
+        name: 'WebDAV 统一云存储 [坚果云/Nextcloud]',
         icon: 'fa-solid fa-cloud obsidian-cyan',
         storageProvider: 'webdav',
         expanded: false,
@@ -2626,7 +2626,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ext: 'md',
             desc: 'WebDAV 云盘挂载引导',
             size: '0.8 KB',
-            content: '# ☁️ WebDAV 云存储挂载节点\n\n您可以在【后台定制】中设置 WebDAV Endpoint、用户名与应用密码。\n设置后，此处将作为 WebDAV 在线盘进行读写与跨后端文件复制！'
+            content: '# WebDAV 云存储挂载节点\n\n您可以在【后台定制】中设置 WebDAV Endpoint、用户名与应用密码。\n设置后，此处将作为 WebDAV 在线盘进行读写与跨后端文件复制！'
           }
         ]
       };
@@ -2643,7 +2643,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localRoot = {
         id: 'root_local',
         type: 'folder',
-        name: '💾 IndexedDB 离线私有盘 [本地沙盒]',
+        name: 'IndexedDB 离线私有盘 [本地沙盒]',
         icon: 'fa-solid fa-hard-drive obsidian-yellow',
         storageProvider: 'local',
         expanded: true,
@@ -2655,13 +2655,13 @@ document.addEventListener('DOMContentLoaded', () => {
             ext: 'md',
             desc: '仅保存在本机浏览器的私有文件',
             size: '1.1 KB',
-            content: '# 💾 本地 IndexedDB 离线私有空间\n\n保存在本文件夹内的文件只存在于您的本地浏览器中，绝不上传任何云端服务器。\n您可以随时将其复制或移动到 【🐙 GitHub 仓库】 或 【☁️ WebDAV】 进行云端同步！'
+            content: '# 本地 IndexedDB 离线私有空间\n\n保存在本文件夹内的文件只存在于您的本地浏览器中，绝不上传任何云端服务器。\n您可以随时将其复制或移动到 【🐙 GitHub 仓库】 或 【☁️ WebDAV】 进行云端同步！'
           }
         ]
       };
       tree.push(localRoot);
     } else {
-      localRoot.name = '💾 IndexedDB 离线私有盘 [本地沙盒]';
+      localRoot.name = 'IndexedDB 离线私有盘 [本地沙盒]';
       localRoot.icon = 'fa-solid fa-hard-drive obsidian-yellow';
       localRoot.storageProvider = 'local';
     }
@@ -3553,7 +3553,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selects = [parentFolderSelect, newFileFolderSelect, targetMoveFolderSelect, uploadTargetFolderSelect];
     selects.forEach(sel => {
       if (!sel) return;
-      sel.innerHTML = '<option value="root">📁 [根目录 / Root]</option>';
+      sel.innerHTML = '<option value="root">📁[根目录 / Root]</option>';
       addFolderOptionsRecursive(treeData, sel, '');
     });
   }
