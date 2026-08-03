@@ -117,3 +117,21 @@ IndexedDB 的文件保存在 **您当前使用的 Web 浏览器存储目录** �
 2. **部署到 GitHub Pages**：
    - 将全部源码 push 到 GitHub 仓库。
    - 在 Settings -> Pages 中开启服务即可完成网盘上线！
+
+---
+
+## 🔒 安全说明（密钥只保存在浏览器，不写入仓库）
+
+本项目为纯前端静态站，浏览器在运行时直接调用 GitHub / Hugging Face / WebDAV 的 API。
+因此**公开发布用的 `data.js` / `data.json` 不再携带任何密码或访问令牌**（`admin_password`、
+`github_token`、`hf_token`、`webdav_user`、`webdav_pass` 均为空）。
+
+- 你在【后台定制】里填写的 Token / 密码，**仅保存在你当前浏览器的 `localStorage`（key：
+  `ys_site_config`），不会上传或提交回仓库**。
+- 其他访客浏览公开站点时，浏览器里没有你的凭据 → 只能以游客只读方式访问，无法读写你的私有盘。
+- 凭据只对“填过它的那一台浏览器”生效；换设备/换浏览器需在后台重新填写。
+
+> ⚠️ 由于前端无法隐藏任何下发到浏览器的东西，`admin_password` 只是“挡普通访客”的交互体验，
+> 并不是真正的安全边界。若你的仓库设为 **Public**，请勿把真实 Token 写进 `data.js` / `data.json`
+> 后 push；请用权限最少的 short-term PAT，并能在后台定期更换。
+> 若该仓库历史提交中曾提交过 token，请立即在 GitHub 后台**吊销 / 重新生成**该 token。
