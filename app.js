@@ -3594,6 +3594,32 @@ document.addEventListener('DOMContentLoaded', () => {
     openYsMigrationBtn.addEventListener('click', openYsMigrationModal);
   }
 
+  // Populate the "migration target folder" selector with the real backend
+  // roots (GitHub / Hugging Face / WebDAV) plus their sub-folders so migrated
+  // data can be written to a user-chosen custom location.
+  function populateYsTargetFolders() {
+    const sel = document.getElementById('ys-target-folder');
+    if (!sel || !Array.isArray(treeData)) return;
+    sel.innerHTML = '';
+    const addOption = (val, label) => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = label;
+      sel.appendChild(opt);
+    };
+    const walkFolders = (nodes, depth, parentPath) => {
+      for (const n of nodes || []) {
+        if (n && n.type === 'folder') {
+          const indent = depth > 0 ? '　'.repeat(depth) + '↳ ' : '';
+          const providerTag = n.storageProvider ? ` [${n.storageProvider}]` : '';
+          addOption(n.id, indent + n.name + providerTag);
+          if (n.children && n.children.length) walkFolders(n.children, depth + 1, parentPath);
+        }
+      }
+    };
+    walkFolders(treeData, 0, '');
+  }
+
   function openYsMigrationModal() {
     if (!isAdminUnlocked) {
       pendingAdminAction = 'openYsMigration';
@@ -3602,6 +3628,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => adminPasswordInput.focus(), 100);
       return;
     }
+    populateYsTargetFolders();
     if (ysMigrationModal) ysMigrationModal.style.display = 'flex';
   }
 
@@ -3735,9 +3762,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (ysLogContent) ysLogContent.innerHTML += `🚀 找到 ${parsedTree.length} 个根分类。正在将项目写入网盘...<br>`;
 
-      // Insert into treeData
+      // Resolve the user-chosen custom target storage location.
+      const targetFolderSelect = document.getElementById('ys-target-folder');
+      const targetId = targetFolderSelect ? targetFolderSelect.value : 'root_github';
+      const targetNode = (targetId && targetId !== 'root') ? findNodeById(treeData, targetId) : null;
+      const targetProvider = targetNode ? getStorageProviderForNode(targetNode) : '';
+      // Find the owning backend root (github / huggingface / webdav).
+      let targetRootId = 'root_github';
+      if (targetProvider === 'huggingface') targetRootId = 'root_huggingface';
+      else if (targetProvider === 'webdav') targetRootId = 'root_webdav';
+      else if (targetNode && targetNode.id && targetNode.id.startsWith('root_')) targetRootId = targetNode.id;
+      const targetRoot = treeData.find(n => n.id === targetRootId) || null;
+      const provider = targetProvider || (targetRoot ? targetRoot.storageProvider : 'github') || 'github';
+
+      if (ysLogContent) ysLogContent.innerHTML += `📌 目标存储位置: ${targetRoot ? targetRoot.name : 'GitHub 主库'}（provider: ${provider}）<br>`;
+
+      // Build the nodes to insert.
+      let nodesToInsert = parsedTree;
       if (createRoot) {
-        const rootFolder = {
+        nodesToInsert = [{
           id: 'folder_ys_root_' + Date.now(),
           type: 'folder',
           name: '📁 永硕 E 盘迁移导入',
@@ -3746,17 +3789,27 @@ document.addEventListener('DOMContentLoaded', () => {
           createdAt: new Date().toLocaleString(),
           updatedAt: new Date().toLocaleString(),
           children: parsedTree
-        };
-        treeData.push(rootFolder);
+        }];
+      }
+
+      // Insert into the target root's children (or the chosen sub-folder).
+      const insertTarget = targetNode && targetNode.type === 'folder' ? targetNode : targetRoot;
+      if (insertTarget) {
+        if (!Array.isArray(insertTarget.children)) insertTarget.children = [];
+        nodesToInsert.forEach(n => insertTarget.children.push(n));
       } else {
-        parsedTree.forEach(node => treeData.push(node));
+        nodesToInsert.forEach(n => treeData.push(n));
       }
 
       ensureNodeMetadata(treeData);
       saveTreeToLocal();
       renderTree();
 
-      if (ysLogContent) ysLogContent.innerHTML += '🎉 迁移成功！数据已全量写入网盘树并在侧边栏呈现！<br>';
+      // Actually push migrated text/markdown index files to the cloud backend
+      // so the migration truly persists across devices (not just localStorage).
+      await pushYsMigrationToBackend(nodesToInsert, provider, targetRoot, targetNode);
+
+      if (ysLogContent) ysLogContent.innerHTML += '🎉 迁移成功！数据已写入网盘树并在侧边栏呈现！<br>';
       showToast('永硕 E 盘数据已一键全量迁移导入完成！');
 
       setTimeout(() => {
@@ -3770,6 +3823,98 @@ document.addEventListener('DOMContentLoaded', () => {
       ysStartMigrationBtn.disabled = false;
       ysStartMigrationBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> 开始迁移';
     }
+  }
+
+  // Push migrated text/markdown files to the chosen cloud backend so the
+  // migration persists across devices (GitHub PUT / HF commit / WebDAV PUT).
+  async function pushYsMigrationToBackend(nodes, provider, targetRoot, targetNode) {
+    if (!Array.isArray(nodes)) return { ok: false, count: 0 };
+    let count = 0;
+
+    // Resolve the base server path prefix for the target folder.
+    const folderPrefix = resolveYsFolderServerPath(targetRoot, targetNode);
+    const basePath = (folderPrefix ? folderPrefix + '/' : '');
+    const indexName = '永硕E盘迁移导入说明.md';
+    const indexContent = `# 📁 永硕 E 盘一键迁移导入说明
+
+本次迁移数据已自动写入本存储空间。
+- 生成时间: ${new Date().toLocaleString()}
+- 目标存储: ${targetRoot ? targetRoot.name : 'GitHub 主库'}
+- 包含分类与快捷链接节点均保留原有结构。
+`;
+
+    // Collect all text-ish nodes (files that carry inline content, or the
+    // generated index doc) to actually push to the backend.
+    const pushTargets = [];
+
+    // The generated index document.
+    pushTargets.push({ name: indexName, content: indexContent });
+
+    // Walk migrated nodes for inline-content files.
+    const walk = (list) => {
+      for (const n of list || []) {
+        if (n && n.type === 'file' && typeof n.content === 'string' && n.content.length) {
+          pushTargets.push({ name: n.name || ('migrated_' + Math.random().toString(36).slice(2, 6) + '.txt'), content: n.content });
+        }
+        if (n && n.children && n.children.length) walk(n.children);
+      }
+    };
+    walk(nodes);
+
+    for (const item of pushTargets) {
+      try {
+        const b64 = btoa(unescape(encodeURIComponent(item.content)));
+        if (provider === 'huggingface') {
+          const ok = await commitHuggingFaceFiles([{
+            path: (basePath ? basePath : '') + item.name,
+            content: b64,
+            encoding: 'base64'
+          }], '永硕迁移导入: ' + item.name);
+          if (ok) count++;
+        } else if (provider === 'webdav') {
+          const url = buildWebDAVFolderUrl(targetNode || (targetRoot || null));
+          const putUrl = (url.replace(/\/$/, '') + '/' + encodeURIComponent(item.name));
+          const putRes = await webdavFetch(putUrl, {
+            method: 'PUT',
+            headers: getWebDAVHeaders({ 'Content-Type': 'text/markdown;charset=utf-8', 'Accept': '*/*' }),
+            body: item.content
+          });
+          if (putRes && (putRes.ok || putRes.status === 201 || putRes.status === 204)) count++;
+        } else {
+          // Default GitHub
+          const url = await uploadFileToGitHub((basePath ? basePath : '') + item.name, b64);
+          if (url) count++;
+        }
+      } catch (err) {
+        console.warn('push migrated backend file failed:', item.name, err);
+      }
+    }
+
+    if (ysLogContent) ysLogContent.innerHTML += `☁️ 已向目标云端(${provider})写入 ${count} 个迁移文本/索引文件。<br>`;
+    return { ok: true, count };
+  }
+
+  // Compute a stable server path prefix for the chosen migration target folder
+  // relative to its backend root (used for GitHub path / HF path / WebDAV URL).
+  function resolveYsFolderServerPath(targetRoot, targetNode) {
+    if (!targetNode || targetNode.type !== 'folder') return '';
+    const parts = [];
+    const visit = (nodes, path) => {
+      for (const n of nodes || []) {
+        const nextPath = path.concat([n.name]);
+        if (n === targetNode) {
+          parts.push.apply(parts, nextPath);
+          return true;
+        }
+        if (n.type === 'folder' && n.children) {
+          if (visit(n.children, nextPath)) return true;
+        }
+      }
+      return false;
+    };
+    const root = targetRoot || (treeData || []).find(n => n.id === 'root_github');
+    if (root) visit([root], []);
+    return parts.join('/');
   }
 
   function parseYs168Html(htmlStr, spaceName) {

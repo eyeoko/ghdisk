@@ -830,6 +830,15 @@
             <label style="display:flex; align-items:center; gap:0.4rem;">
               <input type="checkbox" id="ys-opt-create-root" checked> 将迁移项目统一收入单独的「📁 永硕 E 盘迁移导入」根目录中
             </label>
+            <div style="margin-top:0.6rem; padding-top:0.6rem; border-top:1px dashed var(--border-color);">
+              <label style="display:block; margin-bottom:0.35rem; color:var(--text);">📦 迁移数据存储位置：</label>
+              <select id="ys-target-folder" class="form-control" style="width:100%;">
+                <option value="root_github">GitHub Pages / Raw 仓库 [云端主库]</option>
+                <option value="root_huggingface">🤗 Hugging Face 挂载库 [模型/数据集]</option>
+                <option value="root_webdav">WebDAV 统一云存储 [坚果云/Nextcloud]</option>
+              </select>
+              <small style="color:var(--text-muted);">选择迁移数据写入的目标网盘根目录（GitHub / HF / WebDAV），并自动上传到对应云端。</small>
+            </div>
           </div>
         </div>
 
